@@ -50,3 +50,6 @@ next-env.d.ts
 .pgdata
 .pgdata-*
 .neon
+
+# student credentials and sheet exports (plaintext passwords)
+/private/
