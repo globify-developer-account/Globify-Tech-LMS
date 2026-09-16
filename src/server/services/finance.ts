@@ -16,8 +16,9 @@ const D = (v: number | string | Prisma.Decimal) => new Prisma.Decimal(v);
 
 async function nextNumber(tx: Prisma.TransactionClient, kind: "INV" | "RCP"): Promise<string> {
   const prefix = `${kind}-${new Date().getFullYear()}-`;
-  const last = kind === "INV" ? await tx.invoice.findFirst({ where: { number: { startsWith: prefix } }, orderBy: { number: "desc" }, select: { number: true } }) : await tx.receipt.findFirst({ where: { number: { startsWith: prefix } }, orderBy: { number: "desc" }, select: { number: true } });
-  const n = last ? Number(last.number.slice(prefix.length)) + 1 : 1;
+  // Compare numerically: numbers of different widths (seeded 00022 vs 000023) don't sort as strings.
+  const rows = kind === "INV" ? await tx.invoice.findMany({ where: { number: { startsWith: prefix } }, select: { number: true } }) : await tx.receipt.findMany({ where: { number: { startsWith: prefix } }, select: { number: true } });
+  const n = rows.reduce((max, r) => Math.max(max, Number(r.number.slice(prefix.length)) || 0), 0) + 1;
   return `${prefix}${String(n).padStart(6, "0")}`;
 }
 
