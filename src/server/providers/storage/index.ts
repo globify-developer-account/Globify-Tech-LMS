@@ -89,6 +89,25 @@ class LocalStorageProvider implements StorageProvider {
   }
 }
 
+/**
+ * The S3 client for AWS or an S3-compatible store (Cloudflare R2).
+ *
+ * Checksums only when a request needs one: since @aws-sdk 3.729 the default
+ * adds a CRC32 of the (empty) body to presigned PUT links, so a browser that
+ * then uploads the real file is rejected by R2 (and by AWS) as a checksum
+ * mismatch — every upload failed. Cloudflare's R2 docs recommend this setting.
+ */
+export function s3Client(config: { region: string; endpoint?: string; accessKeyId: string; secretAccessKey: string }): S3Client {
+  return new S3Client({
+    region: config.region,
+    endpoint: config.endpoint || undefined,
+    forcePathStyle: !!config.endpoint,
+    credentials: { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey },
+    requestChecksumCalculation: "WHEN_REQUIRED",
+    responseChecksumValidation: "WHEN_REQUIRED",
+  });
+}
+
 class S3StorageProvider implements StorageProvider {
   readonly name = "s3";
   private client: S3Client;
@@ -97,12 +116,7 @@ class S3StorageProvider implements StorageProvider {
     const e = env();
     if (!e.S3_BUCKET || !e.S3_ACCESS_KEY_ID || !e.S3_SECRET_ACCESS_KEY) throw new Error("S3 storage is not configured");
     this.bucket = e.S3_BUCKET;
-    this.client = new S3Client({
-      region: e.S3_REGION,
-      endpoint: e.S3_ENDPOINT || undefined,
-      forcePathStyle: !!e.S3_ENDPOINT,
-      credentials: { accessKeyId: e.S3_ACCESS_KEY_ID, secretAccessKey: e.S3_SECRET_ACCESS_KEY },
-    });
+    this.client = s3Client({ region: e.S3_REGION, endpoint: e.S3_ENDPOINT, accessKeyId: e.S3_ACCESS_KEY_ID, secretAccessKey: e.S3_SECRET_ACCESS_KEY });
   }
   publicUrl(key: string) {
     const base = env().S3_PUBLIC_URL;

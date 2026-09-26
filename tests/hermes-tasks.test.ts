@@ -93,6 +93,16 @@ describe("links to students' task uploads", () => {
     expect(await codeOf(studentMediaReadUrl(MEDIA, { batchIds: [], courseIds: [] }, sign))).toBe("FORBIDDEN");
   });
 
+  it("makes S3/R2 upload links a browser can use: no checksum of an empty body", async () => {
+    const { s3Client } = await import("@/server/providers/storage");
+    const { PutObjectCommand } = await import("@aws-sdk/client-s3");
+    const { getSignedUrl } = await import("@aws-sdk/s3-request-presigner");
+    const client = s3Client({ region: "auto", endpoint: "https://account.r2.cloudflarestorage.com", accessKeyId: "TESTKEY", secretAccessKey: "TESTSECRET" });
+    const url = new URL(await getSignedUrl(client, new PutObjectCommand({ Bucket: "b", Key: "student-content/a.jpg", ContentType: "image/jpeg", ContentLength: 10 }), { expiresIn: 900 }));
+    expect([...url.searchParams.keys()].filter((k) => k.toLowerCase().includes("checksum"))).toEqual([]);
+    expect(url.pathname).toBe("/b/student-content/a.jpg");
+  });
+
   it("signs local read links separately from uploads, and lets them expire", async () => {
     const link = await new LocalStorageProvider().getSignedReadUrl("student-content/2026/a.jpg", 60);
     const u = new URL(link);
