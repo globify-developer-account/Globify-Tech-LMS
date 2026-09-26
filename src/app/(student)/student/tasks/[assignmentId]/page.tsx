@@ -6,13 +6,25 @@ import { AppError } from "@/server/errors";
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge, statusVariant } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
-import { HermesTaskForm, MarkTaskOpened } from "@/components/lms/hermes-task-form";
+import { HermesTaskForm, MarkTaskOpened, WithdrawPermission } from "@/components/lms/hermes-task-form";
 import { formatDateTime } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Task" };
 export const dynamic = "force-dynamic";
 
+// The LMS's badge colours: to do is pending, accepted is approved, changes requested is a revision.
+const BADGE: Record<string, string> = { ASSIGNED: "PENDING", OPENED: "PENDING", ACCEPTED: "APPROVED", CHANGES_REQUESTED: "REVISION_REQUESTED" };
 const LABEL: Record<string, string> = { ASSIGNED: "To do", OPENED: "To do", OVERDUE: "Overdue", CHANGES_REQUESTED: "Changes requested", SUBMITTED: "Handed in", ACCEPTED: "Accepted" };
+
+/** What the student reads about their latest hand-in, by its review status. */
+function outcome(status: string): { tone: "success" | "warning" | "danger"; text: string } {
+  if (status === "ACCEPTED") return { tone: "success", text: "Your submission was accepted." };
+  if (status === "CHANGES_REQUESTED") return { tone: "warning", text: "The reviewer asked for changes. Please update your work and hand it in again below." };
+  if (status === "REJECTED") return { tone: "danger", text: "Your submission was not accepted." };
+  return { tone: "success", text: "Your submission has been received and is awaiting review." };
+}
+
+const TONE = { success: "border-success/30 bg-success-soft", warning: "border-warning/30 bg-warning-soft", danger: "border-danger/30 bg-danger-soft" } as const;
 
 export default async function TaskPage({ params }: { params: Promise<{ assignmentId: string }> }) {
   const [{ assignmentId }, { studentId }] = await Promise.all([params, requireStudentProfile()]);
@@ -33,7 +45,7 @@ export default async function TaskPage({ params }: { params: Promise<{ assignmen
         breadcrumbs={[{ label: "Tasks", href: "/student/tasks" }, { label: task.title }]}
         title={task.title}
         description={`${task.typeLabel} · due ${formatDateTime(due)}`}
-        actions={<Badge variant={statusVariant(task.status === "ASSIGNED" || task.status === "OPENED" ? "PENDING" : task.status)} className="px-3 py-1">{LABEL[task.status] ?? task.status}</Badge>}
+        actions={<Badge variant={statusVariant(BADGE[task.status] ?? task.status)} className="px-3 py-1">{LABEL[task.status] ?? task.status}</Badge>}
       />
       <div className="grid gap-6 lg:grid-cols-12">
         <section className="surface p-6 lg:col-span-7">
@@ -43,11 +55,33 @@ export default async function TaskPage({ params }: { params: Promise<{ assignmen
         <section className="surface flex flex-col gap-4 p-6 lg:col-span-5">
           {task.submission ? (
             <div className="flex flex-col gap-2">
-              <p className="rounded-lg border border-success/30 bg-success-soft px-4 py-3 text-sm">
-                Your submission has been received{task.submission.status === "RECEIVED" ? " and is awaiting review" : ""}. ({formatDateTime(new Date(task.submission.submittedAt))}{task.late ? ", after the deadline" : ""})
-              </p>
-              {task.submission.files.length ? <p className="text-caption text-fg-muted">{task.submission.files.map((f) => f.fileName).join(", ")}</p> : null}
+              <div className={`rounded-lg border px-4 py-3 text-sm ${TONE[outcome(task.submission.status).tone]}`}>
+                <p>
+                  {outcome(task.submission.status).text} <span className="text-fg-muted">(handed in {formatDateTime(new Date(task.submission.submittedAt))}{task.late ? ", after the deadline" : ""})</span>
+                </p>
+                {task.submission.review?.feedback ? <p className="mt-2 whitespace-pre-wrap">From the reviewer: {task.submission.review.feedback}</p> : null}
+              </div>
+              {task.submission.files.length ? (
+                <p className="text-caption text-fg-muted">
+                  {task.submission.files.map((f) => f.fileName + (task.submission!.status === "ACCEPTED" && f.approved ? " (chosen)" : "")).join(", ")}
+                </p>
+              ) : null}
               {task.submission.response ? <p className="whitespace-pre-wrap text-caption text-fg-muted">{task.submission.response}</p> : null}
+            </div>
+          ) : null}
+          {task.permission && task.permission.state !== "NONE" ? (
+            <div className="flex flex-col gap-2 border-t border-border pt-4">
+              <h3 className="text-sm font-medium">Your permission</h3>
+              {task.permission.state === "GIVEN" ? (
+                <>
+                  <p className="text-caption text-fg-muted">
+                    You allowed Globify Tech Institute to use this work on its official social media{task.permission.since ? ` (${formatDateTime(new Date(task.permission.since))})` : ""}. You can withdraw that at any time.
+                  </p>
+                  {task.permission.canWithdraw ? <WithdrawPermission assignmentId={task.assignmentId} /> : null}
+                </>
+              ) : (
+                <p className="text-caption text-fg-muted">You withdrew your permission{task.permission.since ? ` on ${formatDateTime(new Date(task.permission.since))}` : ""}. Globify will not use this work.</p>
+              )}
             </div>
           ) : null}
           {task.open && (!task.submission || task.status === "CHANGES_REQUESTED") ? (

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { openHermesTaskAction, submitHermesTaskAction } from "@/server/actions/hermes-tasks";
+import { openHermesTaskAction, submitHermesTaskAction, withdrawHermesConsentAction } from "@/server/actions/hermes-tasks";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field } from "@/components/ui/form";
@@ -105,6 +105,53 @@ export function HermesTaskForm({
       <Button onClick={submit} loading={pending} disabled={!allTicked || (kinds.length > 0 && uploads.length === 0 && !responsePrompt)}>
         Submit
       </Button>
+    </div>
+  );
+}
+
+/**
+ * Brief §20: the student can withdraw permission at any time. Two steps, so
+ * a stray tap does not withdraw it; the reason is optional.
+ */
+export function WithdrawPermission({ assignmentId }: { assignmentId: string }) {
+  const router = useRouter();
+  const [asking, setAsking] = React.useState(false);
+  const [reason, setReason] = React.useState("");
+  const [pending, start] = React.useTransition();
+
+  const withdraw = () =>
+    start(async () => {
+      const res = await withdrawHermesConsentAction(assignmentId, reason || undefined);
+      if (!res.ok) {
+        toast.error(res.error.message);
+        return;
+      }
+      toast.success("Your permission has been withdrawn. Globify will not use this work.");
+      setAsking(false);
+      router.refresh();
+    });
+
+  if (!asking) {
+    return (
+      <Button variant="outline" size="sm" onClick={() => setAsking(true)}>
+        Withdraw my permission
+      </Button>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-3 rounded-lg border border-danger/30 p-4">
+      <p className="text-sm">Globify will stop using what you handed in for this task, and staff will be told. This cannot be undone here.</p>
+      <Field label="Reason (optional)" htmlFor="withdraw-reason">
+        <Textarea id="withdraw-reason" rows={2} maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} />
+      </Field>
+      <div className="flex gap-2">
+        <Button variant="danger" size="sm" onClick={withdraw} loading={pending}>
+          Withdraw permission
+        </Button>
+        <Button variant="ghost" size="sm" onClick={() => setAsking(false)} disabled={pending}>
+          Keep it
+        </Button>
+      </div>
     </div>
   );
 }

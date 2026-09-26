@@ -11,6 +11,8 @@ import { formatDateTime, relativeTime } from "@/lib/utils";
 export const metadata: Metadata = { title: "Tasks" };
 export const dynamic = "force-dynamic";
 
+// The LMS's badge colours: to do is pending, accepted is approved, changes requested is a revision.
+const BADGE: Record<string, string> = { ASSIGNED: "PENDING", OPENED: "PENDING", ACCEPTED: "APPROVED", CHANGES_REQUESTED: "REVISION_REQUESTED" };
 const LABEL: Record<string, string> = { ASSIGNED: "To do", OPENED: "To do", OVERDUE: "Overdue", CHANGES_REQUESTED: "Changes requested", SUBMITTED: "Handed in", ACCEPTED: "Accepted" };
 
 /** Brief §53 "My Tasks": tasks from Globify staff (sent through Hermes), answered here. */
@@ -38,7 +40,7 @@ export default async function TasksPage() {
             {t.typeLabel} · due {relativeTime(new Date(t.dueAt))} ({formatDateTime(new Date(t.dueAt))}){t.late ? " · handed in late" : ""}
           </p>
         </div>
-        <Badge variant={statusVariant(t.status === "ASSIGNED" || t.status === "OPENED" ? "PENDING" : t.status)}>{LABEL[t.status] ?? t.status}</Badge>
+        <Badge variant={statusVariant(BADGE[t.status] ?? t.status)}>{LABEL[t.status] ?? t.status}</Badge>
         <ArrowRight className="size-4 text-fg-subtle rtl:rotate-180" />
       </Link>
     </li>

@@ -22,7 +22,7 @@ const { notifyStudentFromHermes, studentMediaReadUrl } = await import("@/server/
 const { writesEnabled, requireWritesEnabled } = await import("@/server/integration/auth");
 const { LocalStorageProvider } = await import("@/server/providers/storage");
 const { hermesPortal } = await import("@/server/hermes/portal");
-const { submitHermesTaskAction } = await import("@/server/actions/hermes-tasks");
+const { submitHermesTaskAction, withdrawHermesConsentAction } = await import("@/server/actions/hermes-tasks");
 
 const STUDENT = "30000000-0000-4000-8000-000000000001";
 const USER = "31000000-0000-4000-8000-000000000001";
@@ -175,5 +175,39 @@ describe("the student's submit action", () => {
     vi.unstubAllGlobals();
     delete process.env.HERMES_PORTAL_URL;
     delete process.env.HERMES_PORTAL_KEY;
+  });
+});
+
+describe("withdrawing permission", () => {
+  const ASSIGNMENT = "4a6f1c2e-0000-4000-8000-000000000001";
+
+  beforeEach(() => {
+    session.requireStudentProfile.mockResolvedValue({ user: { id: USER }, studentId: STUDENT });
+    process.env.HERMES_PORTAL_URL = "https://hermes.test";
+    process.env.HERMES_PORTAL_KEY = "hrm_portal_" + "k".repeat(40);
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete process.env.HERMES_PORTAL_URL;
+    delete process.env.HERMES_PORTAL_KEY;
+  });
+
+  it("tells Hermes, as the signed-in student, with the optional reason", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ success: true, data: { withdrawn: 1 } }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    expect(await withdrawHermesConsentAction(ASSIGNMENT, "  I changed my mind.  ")).toEqual({ ok: true, data: { withdrawn: 1 } });
+    const [url, init] = fetchMock.mock.calls[0]! as unknown as [string, RequestInit];
+    expect(url).toBe(`https://hermes.test/api/portal/v1/students/${STUDENT}/tasks/${ASSIGNMENT}/consent/withdraw`);
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(String(init.body))).toEqual({ reason: "I changed my mind." });
+  });
+
+  it("refuses a malformed task id without calling Hermes, and shows Hermes's message when there is nothing to withdraw", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ success: false, error: { code: "CONFLICT", message: "There is no permission to withdraw for this task." } }), { status: 409 }));
+    vi.stubGlobal("fetch", fetchMock);
+    expect((await withdrawHermesConsentAction("not-a-uuid")).ok).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+    const r = await withdrawHermesConsentAction(ASSIGNMENT);
+    expect(r).toMatchObject({ ok: false, error: { message: "There is no permission to withdraw for this task." } });
   });
 });

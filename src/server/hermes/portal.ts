@@ -38,7 +38,16 @@ export interface HermesTask {
   files: { kinds: Array<"image" | "video" | "document">; maxFiles: number; maxSizeMb: Record<string, number> } | null;
   responsePrompt: string | null;
   consent: { version: string; statements: string[] } | null;
-  submission: { submittedAt: string; status: string; response: string | null; files: Array<{ fileName: string; kind: string; mime: string; size: number }> } | null;
+  submission: {
+    submittedAt: string;
+    status: string;
+    response: string | null;
+    files: Array<{ fileName: string; kind: string; mime: string; size: number; approved?: boolean }>;
+    /** The reviewer's decision and their words to the student (Hermes never sends internal notes). */
+    review?: { decision: "APPROVED" | "CHANGES_REQUESTED" | "REJECTED"; feedback: string | null; decidedAt: string } | null;
+  } | null;
+  /** For tasks that asked for consent: whether it stands, and whether the student can still withdraw it. */
+  permission?: { state: "GIVEN" | "WITHDRAWN" | "NONE"; since: string | null; canWithdraw: boolean } | null;
 }
 
 export function portalConfigured(): boolean {
@@ -84,4 +93,6 @@ export const hermesPortal = {
   task: (studentId: string, assignmentId: string) => call<HermesTask>("GET", `/students/${studentId}/tasks/${assignmentId}`),
   open: (studentId: string, assignmentId: string) => call<{ opened: boolean }>("POST", `/students/${studentId}/tasks/${assignmentId}/open`, {}),
   submit: (studentId: string, assignmentId: string, body: unknown) => call<{ submissionId: string; status: string; replayed: boolean }>("POST", `/students/${studentId}/tasks/${assignmentId}/submissions`, body),
+  withdrawConsent: (studentId: string, assignmentId: string, reason: string | null) =>
+    call<{ withdrawn: number }>("POST", `/students/${studentId}/tasks/${assignmentId}/consent/withdraw`, { reason }),
 };

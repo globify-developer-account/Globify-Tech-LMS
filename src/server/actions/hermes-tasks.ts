@@ -67,3 +67,19 @@ export async function submitHermesTaskAction(raw: unknown): Promise<ActionResult
     return fail(error);
   }
 }
+
+/**
+ * Brief §20: the student withdraws permission to use what they handed in for
+ * this task. Hermes stops any use and tells the staff involved.
+ */
+export async function withdrawHermesConsentAction(assignmentId: string, reason?: string): Promise<ActionResult<{ withdrawn: number }>> {
+  try {
+    const { studentId } = await requireStudentProfile();
+    const why = z.string().trim().max(500).optional().parse(reason);
+    const result = await hermesPortal.withdrawConsent(studentId, uuid.parse(assignmentId), why || null);
+    revalidatePath(`/student/tasks/${assignmentId}`);
+    return ok(result);
+  } catch (error) {
+    return fail(error);
+  }
+}
