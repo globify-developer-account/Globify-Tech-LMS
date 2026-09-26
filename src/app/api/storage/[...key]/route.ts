@@ -32,18 +32,21 @@ export async function PUT(req: Request, ctx: { params: Promise<{ key: string[] }
   return new NextResponse(null, { status: 204 });
 }
 
-export async function GET(_req: Request, ctx: { params: Promise<{ key: string[] }> }) {
+export async function GET(req: Request, ctx: { params: Promise<{ key: string[] }> }) {
   const key = keyFrom(await ctx.params);
   if (!key) return new NextResponse("Not found", { status: 404 });
-  const media = await prisma.media.findUnique({ where: { key }, select: { mime: true, fileName: true, deletedAt: true } });
+  const media = await prisma.media.findUnique({ where: { key }, select: { mime: true, fileName: true, deletedAt: true, isPublic: true } });
   if (!media || media.deletedAt) return new NextResponse("Not found", { status: 404 });
+  // Private files (students' task uploads) only through a signed, expiring read link.
+  const url = new URL(req.url);
+  if (!media.isPublic && !LocalStorageProvider.verifyRead(key, url.searchParams.get("expires"), url.searchParams.get("rsig"))) return new NextResponse("Not found", { status: 404 });
   const file = await LocalStorageProvider.read(key);
   if (!file) return new NextResponse("Not found", { status: 404 });
   return new NextResponse(new Uint8Array(file), {
     headers: {
       "Content-Type": media.mime,
       "Content-Length": String(file.byteLength),
-      "Cache-Control": "public, max-age=31536000, immutable",
+      "Cache-Control": media.isPublic ? "public, max-age=31536000, immutable" : "private, no-store",
       "Content-Disposition": `inline; filename="${encodeURIComponent(media.fileName)}"`,
       "X-Content-Type-Options": "nosniff",
     },

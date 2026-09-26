@@ -86,6 +86,27 @@ export async function resolveActor(req: Request): Promise<IntegrationActor> {
   };
 }
 
+/**
+ * Writes through the integration API (notifying a student) are a second,
+ * separate switch: off unless HERMES_INTEGRATION_WRITE_ENABLED=true, so a
+ * read-only deployment stays read-only.
+ */
+export function writesEnabled(): boolean {
+  return process.env.HERMES_INTEGRATION_WRITE_ENABLED === "true";
+}
+
+export function requireWritesEnabled(): void {
+  if (!writesEnabled()) throw AppError.unavailable("Writes through the integration API are switched off on this server.");
+}
+
+/** Service key, then acting user, who must hold at least one of the listed LMS permissions. */
+export async function requireIntegrationAny(req: Request, permissions: Permission[]): Promise<IntegrationActor> {
+  await authenticateService(req);
+  const actor = await resolveActor(req);
+  if (!permissions.some((p) => can(actor, p))) throw AppError.forbidden(`The acting user needs one of the LMS permissions ${permissions.map((p) => `"${p}"`).join(" or ")}.`);
+  return actor;
+}
+
 /** Service key, then acting user, then every listed LMS permission. */
 export async function requireIntegration(req: Request, permissions: Permission[]): Promise<IntegrationActor> {
   await authenticateService(req);

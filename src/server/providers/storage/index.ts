@@ -1,7 +1,7 @@
 import "server-only";
 import { mkdir, writeFile, unlink, readFile } from "node:fs/promises";
 import path from "node:path";
-import { createHmac } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { env } from "@/config/env";
@@ -30,6 +30,11 @@ function localSignature(key: string, expires: number): string {
   return createHmac("sha256", env().AUTH_SECRET).update(`${key}:${expires}`).digest("hex");
 }
 
+/** A different message from the upload signature, so a read link can never be used to overwrite the file. */
+function localReadSignature(key: string, expires: number): string {
+  return createHmac("sha256", env().AUTH_SECRET).update(`read:${key}:${expires}`).digest("hex");
+}
+
 /** Dev driver: files live in ./.storage and are served by /api/storage/[...key]. */
 class LocalStorageProvider implements StorageProvider {
   readonly name = "local";
@@ -46,8 +51,9 @@ class LocalStorageProvider implements StorageProvider {
       expiresInSeconds: 900,
     };
   }
-  async getSignedReadUrl(key: string) {
-    return this.publicUrl(key);
+  async getSignedReadUrl(key: string, expiresInSeconds = 3600) {
+    const expires = Date.now() + expiresInSeconds * 1000;
+    return absoluteUrl(`/api/storage/${key}?expires=${expires}&rsig=${localReadSignature(key, expires)}`);
   }
   async putObject(key: string, body: Buffer | Uint8Array) {
     const file = path.join(LOCAL_ROOT, key);
@@ -63,6 +69,13 @@ class LocalStorageProvider implements StorageProvider {
     if (!expires || !sig) return false;
     if (Number(expires) < Date.now()) return false;
     return localSignature(key, Number(expires)) === sig;
+  }
+  /** Used by the local GET route for private files. */
+  static verifyRead(key: string, expires: string | null, sig: string | null): boolean {
+    if (!expires || !sig || !/^[0-9a-f]{64}$/.test(sig)) return false;
+    if (Number(expires) < Date.now()) return false;
+    const expected = Buffer.from(localReadSignature(key, Number(expires)), "hex");
+    return timingSafeEqual(expected, Buffer.from(sig, "hex"));
   }
   static async read(key: string): Promise<Buffer | null> {
     try {

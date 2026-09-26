@@ -1,6 +1,6 @@
 # Integration API — `/api/integration/v1`
 
-A read-only, service-to-service API for **Hermes** (`hermes.globifytech.com`), Globify's staff operations platform. Browsers and the mobile app never call it. It is separate from `/api/v1`, which serves signed-in people.
+A service-to-service API for **Hermes** (`hermes.globifytech.com`), Globify's staff operations platform. Browsers and the mobile app never call it. It is separate from `/api/v1`, which serves signed-in people.
 
 Code: `src/server/integration/*` (auth, scope, queries, envelope) and `src/app/api/integration/v1/**/route.ts` (thin handlers). Tests: `tests/integration-api.test.ts`.
 
@@ -37,7 +37,7 @@ Instructors and teaching assistants whose permission comes only from a teaching 
 
 Error codes (Hermes vocabulary): `UNAUTHORIZED 401`, `FORBIDDEN 403`, `NOT_FOUND 404`, `VALIDATION_ERROR 422` (+ `fields`), `RATE_LIMITED 429`, `CONFLICT 409`, `INTEGRATION_NOT_CONFIGURED 501`, `INTERNAL_ERROR 500`. Internal messages are never returned.
 
-## Routes (all `GET`)
+## Read routes (`GET`)
 
 `page` ≥ 1, `limit` 1–100 (default 25). Dates are ISO 8601. Statuses are the LMS's own enum values.
 
@@ -58,6 +58,32 @@ Error codes (Hermes vocabulary): `UNAUTHORIZED 401`, `FORBIDDEN 403`, `NOT_FOUND
 
 **Payments** are read-only. Nothing in this API records, changes or refunds money.
 
+## Student tasks (Hermes Phase 5)
+
+Tasks for students (photo requests, surveys, event confirmations…) are created and tracked in Hermes. **Students never use Hermes**: they see and answer tasks here, on the Tasks page of the student area, and their files stay in this site's storage.
+
+### Two more integration routes
+
+| Route | LMS permission | Notes |
+|---|---|---|
+| `POST /students/:studentId/notifications` | `students.update` **or** `notifications.manage` (teaching scope applies to `students.update`) | Write. Body `{ title (≤120), body (≤1000), href }`; `href` must be a path in the student area (`/student/…`). Header `Idempotency-Key` (8–200 of `A-Z a-z 0-9 . _ : -`) is required: the same key for the same student returns the first notification with `replayed: true`. Creates an `IN_APP` notification (`event: ANNOUNCEMENT`, `data.hermesKey = key`) directly, so no admin template can replace Hermes's words. Returns `notificationId, channel, status: "SENT", replayed` |
+| `GET /media/:mediaId/read-url` | `students.read` | A 10-minute signed link to a student's task upload. Only private files in `student-content/`; for a teaching-only actor, only from students they teach. Returns `mediaId, url, expiresAt, mime, size, fileName` |
+
+**Writes need a second switch.** Every write route answers `501 INTEGRATION_NOT_CONFIGURED` unless `HERMES_INTEGRATION_WRITE_ENABLED=true` (and `/health` reports `writeEnabled`). Turn it on only when Hermes should start notifying students.
+
+### The student side
+
+* `/student/tasks` and `/student/tasks/:assignmentId` read tasks from Hermes's student-portal API server to server (`src/server/hermes/portal.ts`), naming the signed-in student. Opening a task tells Hermes (it stops the "you haven't opened it" reminder).
+* The hand-in form (`src/components/lms/hermes-task-form.tsx`) is the brief's §17: upload, optional caption, the two consent statements, Submit, then "Your submission has been received and is awaiting review."
+* Uploads use the existing presign → PUT → complete flow into the folder `student-content/`, which `presignUpload` now marks **private** (`isPublic = false`). The submit action (`src/server/actions/hermes-tasks.ts`) sends Hermes only references to the student's own finished private uploads.
+* Environment (LMS app): `HERMES_PORTAL_URL=https://hermes.globifytech.com` and `HERMES_PORTAL_KEY=<key>`. Generate the pair with `pnpm service-key portal` in the Hermes repository: the key goes here, its hash into Hermes (`HERMES_PORTAL_KEY_HASHES`). Without them the Tasks page says tasks are not available; nothing else changes.
+
+### Private files
+
+* **Local driver** (`STORAGE_DRIVER=local`): `GET /api/storage/<key>` serves a private file only with a valid read signature (`expires` + `rsig`, HMAC with `AUTH_SECRET`, separate from the upload signature so a read link can never overwrite a file) and `Cache-Control: private, no-store`. Public files are unchanged.
+* **S3 driver**: links are S3 presigned GETs. The bucket (or at least the `student-content/` prefix) must **not** allow public reads.
+* Production storage is still unproven (see Hermes `HERMES_CODEBASE_AUDIT.md` R7): check where uploads go on Hostinger before students are asked for photos. If `.storage` does not survive a redeploy, use S3-compatible storage.
+
 ## Not in v1
 
-No write routes (enrollments, student tasks, notifications). They will arrive behind a separate `HERMES_INTEGRATION_WRITE_ENABLED` switch after the read API has run in production. `/api/integration/v1` is frozen once Hermes depends on it; breaking changes go to `/v2`.
+Enrollment writes and task creation in the LMS itself. `/api/integration/v1` is frozen once Hermes depends on it; breaking changes go to `/v2`.

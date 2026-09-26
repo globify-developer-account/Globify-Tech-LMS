@@ -416,3 +416,66 @@ export async function listPayments(q: z.infer<typeof paymentsQuery>): Promise<In
     pagination: { page: q.page, limit: q.limit, total },
   };
 }
+
+// ─── Student tasks (Hermes Phase 5) ─────────────────────────────────────────
+
+export const notifyBodySchema = z
+  .object({
+    title: z.string().trim().min(1).max(120),
+    body: z.string().trim().min(1).max(1000),
+    /** Only somewhere in the student area of this site: never an outside link. */
+    href: z.string().regex(/^\/student\/[A-Za-z0-9/_-]{1,200}$/),
+  })
+  .strict();
+
+const IDEMPOTENCY_KEY = /^[A-Za-z0-9._:-]{8,200}$/;
+
+/**
+ * An in-app notification for one student from Hermes (a task, a reminder).
+ * Written as an IN_APP row directly rather than through notify(), so an
+ * admin template for another event can never replace Hermes's words.
+ * Idempotent: the Idempotency-Key is stored in the row's data, and the same
+ * key for the same student returns the first row.
+ */
+export async function notifyStudentFromHermes(studentId: string, idempotencyKey: string | null, raw: unknown, scope: TeachingScope | null, actorId: string): Promise<IntegrationResult> {
+  const id = uuid.parse(studentId);
+  if (!idempotencyKey || !IDEMPOTENCY_KEY.test(idempotencyKey)) throw AppError.validation("Idempotency-Key is required (8–200 letters, digits or . _ : -).");
+  const input = notifyBodySchema.parse(raw);
+  await assertStudentVisible(id, scope);
+  const profile = await prisma.studentProfile.findUniqueOrThrow({ where: { id }, select: { userId: true } });
+
+  const prior = await prisma.notification.findFirst({ where: { userId: profile.userId, channel: "IN_APP", data: { path: ["hermesKey"], equals: idempotencyKey } }, select: { id: true } });
+  if (prior) return { data: { notificationId: prior.id, channel: "IN_APP", status: "SENT", replayed: true } };
+
+  const row = await prisma.notification.create({
+    data: {
+      userId: profile.userId,
+      event: "ANNOUNCEMENT",
+      channel: "IN_APP",
+      title: input.title,
+      body: input.body,
+      href: input.href,
+      data: { hermesKey: idempotencyKey, source: "hermes", actorId },
+      status: "SENT",
+      sentAt: new Date(),
+    },
+    select: { id: true },
+  });
+  return { data: { notificationId: row.id, channel: "IN_APP", status: "SENT", replayed: false } };
+}
+
+/**
+ * A short-lived link (10 minutes) to a file a student uploaded for a Hermes
+ * task. Only private files in the student-content/ area; for an instructor,
+ * only files from students they teach.
+ */
+export async function studentMediaReadUrl(mediaId: string, scope: TeachingScope | null, signedReadUrl: (key: string, seconds: number) => Promise<string>): Promise<IntegrationResult> {
+  const id = uuid.parse(mediaId);
+  const media = await prisma.media.findFirst({ where: { id, deletedAt: null }, select: { id: true, key: true, mime: true, size: true, fileName: true, isPublic: true, uploadedById: true } });
+  if (!media || media.isPublic || !media.key.startsWith("student-content/") || !media.uploadedById) throw AppError.notFound("File");
+  const owner = await prisma.studentProfile.findFirst({ where: { userId: media.uploadedById, ...studentScopeWhere(scope) }, select: { id: true } });
+  if (!owner) throw scope ? AppError.forbidden("The acting user does not teach the student who uploaded this file.") : AppError.notFound("File");
+  const seconds = 600;
+  const url = await signedReadUrl(media.key, seconds);
+  return { data: { mediaId: media.id, url, expiresAt: new Date(Date.now() + seconds * 1000).toISOString(), mime: media.mime, size: media.size, fileName: media.fileName } };
+}

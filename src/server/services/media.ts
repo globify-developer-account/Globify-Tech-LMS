@@ -65,6 +65,8 @@ export async function presignUpload(input: PresignInput, uploadedById: string) {
   validateUpload(input);
   const name = safeName(input.fileName);
   const folder = input.folder?.replace(/^\/+|\/+$/g, "") || "uploads";
+  // Students' task uploads for Hermes are private until the institute approves them (brief §18).
+  const isPublic = !(folder === "student-content" || folder.startsWith("student-content/"));
   const key = `${folder}/${new Date().getFullYear()}/${randomUUID()}-${name}`;
   const signed = await storage().getSignedUploadUrl(key, input.mime, input.size);
   const media = await prisma.media.create({
@@ -76,6 +78,7 @@ export async function presignUpload(input: PresignInput, uploadedById: string) {
       size: input.size,
       fileName: input.fileName,
       uploadedById,
+      isPublic,
       metadata: { pending: true },
     },
   });

@@ -33,6 +33,7 @@ export const STUDENT_NAV: NavGroup[] = [
   {
     key: "assessment",
     items: [
+      { key: "tasks", href: "/student/tasks", icon: "ListTodo" },
       { key: "assignments", href: "/student/assignments", icon: "ClipboardList" },
       { key: "projects", href: "/student/projects", icon: "FolderKanban" },
       { key: "quizzes", href: "/student/quizzes", icon: "ListChecks" },
