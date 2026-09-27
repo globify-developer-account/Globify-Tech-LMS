@@ -178,6 +178,24 @@ describe("the student's submit action", () => {
   });
 });
 
+describe("my contributions", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete process.env.HERMES_PORTAL_URL;
+    delete process.env.HERMES_PORTAL_KEY;
+  });
+
+  it("reads the student's approved and published content from Hermes, as that student", async () => {
+    process.env.HERMES_PORTAL_URL = "https://hermes.test";
+    process.env.HERMES_PORTAL_KEY = "hrm_portal_" + "k".repeat(40);
+    const items = [{ task: "Workshop photos", approvedAt: "2026-09-27T10:00:00.000Z", published: [{ platform: "INSTAGRAM", url: "https://www.instagram.com/p/abc/", publishedAt: "2026-09-27T12:00:00.000Z" }] }];
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ success: true, data: { items } }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    expect(await hermesPortal.contributions(STUDENT)).toEqual(items);
+    expect((fetchMock.mock.calls[0]! as unknown as [string])[0]).toBe(`https://hermes.test/api/portal/v1/students/${STUDENT}/contributions`);
+  });
+});
+
 describe("withdrawing permission", () => {
   const ASSIGNMENT = "4a6f1c2e-0000-4000-8000-000000000001";
 

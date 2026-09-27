@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, ListTodo } from "lucide-react";
+import { ArrowRight, ExternalLink, ListTodo } from "lucide-react";
 import { requireStudentProfile } from "@/server/auth/session";
-import { hermesPortal, portalConfigured, type HermesTaskSummary } from "@/server/hermes/portal";
+import { hermesPortal, portalConfigured, type HermesContribution, type HermesTaskSummary } from "@/server/hermes/portal";
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge, statusVariant } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -14,15 +14,18 @@ export const dynamic = "force-dynamic";
 // The LMS's badge colours: to do is pending, accepted is approved, changes requested is a revision.
 const BADGE: Record<string, string> = { ASSIGNED: "PENDING", OPENED: "PENDING", ACCEPTED: "APPROVED", CHANGES_REQUESTED: "REVISION_REQUESTED" };
 const LABEL: Record<string, string> = { ASSIGNED: "To do", OPENED: "To do", OVERDUE: "Overdue", CHANGES_REQUESTED: "Changes requested", SUBMITTED: "Handed in", ACCEPTED: "Accepted" };
+const PLATFORM: Record<string, string> = { FACEBOOK: "Facebook", INSTAGRAM: "Instagram", LINKEDIN: "LinkedIn" };
 
 /** Brief §53 "My Tasks": tasks from Globify staff (sent through Hermes), answered here. */
 export default async function TasksPage() {
   const { studentId } = await requireStudentProfile();
   let items: HermesTaskSummary[] = [];
+  let contributions: HermesContribution[] = [];
   let unavailable = !portalConfigured();
   if (!unavailable) {
     try {
       items = await hermesPortal.tasks(studentId);
+      contributions = await hermesPortal.contributions(studentId).catch(() => []);
     } catch {
       unavailable = true;
     }
@@ -63,6 +66,32 @@ export default async function TasksPage() {
       ) : (
         <EmptyState icon={<ListTodo />} title="No tasks right now." description="Photo requests, surveys and other tasks from Globify staff appear here." />
       )}
+      {contributions.length ? (
+        <section className="flex flex-col gap-2">
+          <h2 className="text-label text-fg-subtle">My contributions</h2>
+          <ul className="surface divide-y divide-border">
+            {contributions.map((c, i) => (
+              <li key={i} className="flex flex-wrap items-center justify-between gap-3 p-4">
+                <div className="min-w-0">
+                  <p className="font-medium">{c.task}</p>
+                  <p className="text-caption text-fg-muted">Approved {relativeTime(new Date(c.approvedAt))}{c.published.length ? "" : " · not published yet"}</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {c.published.map((p, j) =>
+                    p.url ? (
+                      <a key={j} href={p.url} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 text-sm text-accent hover:underline">
+                        {PLATFORM[p.platform] ?? p.platform} <ExternalLink className="size-3.5" />
+                      </a>
+                    ) : (
+                      <span key={j} className="text-sm text-fg-muted">{PLATFORM[p.platform] ?? p.platform}</span>
+                    ),
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
     </div>
   );
 }

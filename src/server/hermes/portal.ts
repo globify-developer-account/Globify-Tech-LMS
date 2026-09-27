@@ -50,6 +50,13 @@ export interface HermesTask {
   permission?: { state: "GIVEN" | "WITHDRAWN" | "NONE"; since: string | null; canWithdraw: boolean } | null;
 }
 
+/** Brief §53 "My Contributions": approved content and where Globify published it. */
+export interface HermesContribution {
+  task: string;
+  approvedAt: string;
+  published: Array<{ platform: "FACEBOOK" | "INSTAGRAM" | "LINKEDIN" | string; url: string | null; publishedAt: string }>;
+}
+
 export function portalConfigured(): boolean {
   return Boolean(process.env.HERMES_PORTAL_URL && process.env.HERMES_PORTAL_KEY);
 }
@@ -93,6 +100,7 @@ export const hermesPortal = {
   task: (studentId: string, assignmentId: string) => call<HermesTask>("GET", `/students/${studentId}/tasks/${assignmentId}`),
   open: (studentId: string, assignmentId: string) => call<{ opened: boolean }>("POST", `/students/${studentId}/tasks/${assignmentId}/open`, {}),
   submit: (studentId: string, assignmentId: string, body: unknown) => call<{ submissionId: string; status: string; replayed: boolean }>("POST", `/students/${studentId}/tasks/${assignmentId}/submissions`, body),
+  contributions: (studentId: string) => call<{ items: HermesContribution[] }>("GET", `/students/${studentId}/contributions`).then((d) => d.items),
   withdrawConsent: (studentId: string, assignmentId: string, reason: string | null) =>
     call<{ withdrawn: number }>("POST", `/students/${studentId}/tasks/${assignmentId}/consent/withdraw`, { reason }),
 };
