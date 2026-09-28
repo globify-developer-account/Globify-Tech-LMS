@@ -5,7 +5,7 @@ import { absoluteUrl } from "@/lib/utils";
 export const revalidate = 3600;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const staticPaths = ["/", "/about", "/courses", "/programs", "/learning-paths", "/instructors", "/events", "/success-stories", "/blog", "/admissions", "/apply", "/contact", "/careers", "/certificates", "/verify"];
+  const staticPaths = ["/", "/about", "/courses", "/programs", "/learning-paths", "/instructors", "/events", "/success-stories", "/blog", "/admissions", "/apply", "/contact", "/careers", "/certificates", "/verify", "/delete-account"];
   const [courses, programs, paths, instructors, posts, pages, events, stories] = await Promise.all([
     prisma.course.findMany({ where: { status: "PUBLISHED", deletedAt: null, noindex: false }, select: { slug: true, updatedAt: true } }),
     prisma.program.findMany({ where: { status: "PUBLISHED", deletedAt: null }, select: { slug: true, updatedAt: true } }),

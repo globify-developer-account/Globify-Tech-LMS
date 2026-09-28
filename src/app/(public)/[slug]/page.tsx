@@ -7,7 +7,7 @@ import { JsonLd } from "@/components/seo/json-ld";
 
 export const revalidate = 300;
 
-const RESERVED = new Set(["home", "courses", "programs", "learning-paths", "instructors", "events", "success-stories", "blog", "admissions", "apply", "contact", "careers", "certificates", "verify", "about", "sign-in", "sign-up"]);
+const RESERVED = new Set(["home", "courses", "programs", "learning-paths", "instructors", "events", "success-stories", "blog", "admissions", "apply", "contact", "careers", "certificates", "verify", "about", "sign-in", "sign-up", "delete-account"]);
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
