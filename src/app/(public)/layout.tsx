@@ -18,7 +18,7 @@ const DEFAULT_HEADER = [
 ];
 
 const DEFAULT_FOOTER: FooterColumn[] = [
-  { id: "learn", label: "Learn", items: [{ id: "c", label: "Courses", href: "/courses" }, { id: "p", label: "Programs", href: "/programs" }, { id: "lp", label: "Learning paths", href: "/learning-paths" }, { id: "ev", label: "Events", href: "/events" }] },
+  { id: "learn", label: "Learn", items: [{ id: "c", label: "Courses", href: "/courses" }, { id: "p", label: "Programs", href: "/programs" }, { id: "lp", label: "Learning paths", href: "/learning-paths" }, { id: "ev", label: "Events", href: "/events" }, { id: "ws", label: "Saturday workshop", href: "/workshop" }] },
   { id: "company", label: "Company", items: [{ id: "a", label: "About", href: "/about" }, { id: "i", label: "Instructors", href: "/instructors" }, { id: "s", label: "Success stories", href: "/success-stories" }, { id: "b", label: "Blog", href: "/blog" }, { id: "ca", label: "Careers", href: "/careers" }] },
   { id: "admissions", label: "Admissions", items: [{ id: "ad", label: "How admissions work", href: "/admissions" }, { id: "ap", label: "Apply online", href: "/apply" }, { id: "ct", label: "Contact", href: "/contact" }, { id: "ce", label: "Certificates", href: "/certificates" }] },
   { id: "students", label: "Students", items: [{ id: "si", label: "Sign in", href: "/sign-in" }, { id: "su", label: "Create account", href: "/sign-up" }, { id: "v", label: "Verify a certificate", href: "/verify" }] },
