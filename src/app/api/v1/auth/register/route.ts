@@ -31,7 +31,13 @@ export const POST = handle(async (req) => {
   const problem = passwordProblem(input.password);
   if (problem) throw AppError.validation(problem);
   const { user } = await createStudentAccount({ name: input.name, email: input.email, password: input.password, phone: input.phone || null });
-  await sendVerificationEmail(user.id, user.email, user.name);
+  // The account exists either way: a broken mail provider must not fail the
+  // sign-up (the student can resend the verification email later).
+  try {
+    await sendVerificationEmail(user.id, user.email, user.name);
+  } catch (error) {
+    console.error(JSON.stringify({ level: "error", msg: "signup verification email failed", err: (error as Error)?.message }));
+  }
   await audit({ actorId: user.id, actorRoles: ["STUDENT"], action: "auth.signup", entityType: "User", entityId: user.id });
   return jsonOk(await issueMobileToken(user.id));
 });
