@@ -22,17 +22,19 @@ export async function removeRole(userId: string, roleKey: RoleKey) {
   await prisma.userRole.deleteMany({ where: { userId, roleId: role.id } });
 }
 
-/** GT-YYYY-NNNNN, sequential per year. */
+/**
+ * GT-YYYY-NNNNN, sequential per year. The maximum is taken numerically, not
+ * by sorting strings: the roster import wrote 4-digit numbers (GT-2026-1024)
+ * while this generator pads to 5 (GT-2026-01025), and a string "desc" sort
+ * ranks "1024" above "01025", which re-issued 01025 and made every sign-up
+ * fail with a unique-constraint conflict.
+ */
 export async function nextStudentNumber(tx: Tx | typeof prisma = prisma): Promise<string> {
   const year = new Date().getFullYear();
   const prefix = `GT-${year}-`;
-  const last = await tx.studentProfile.findFirst({
-    where: { studentNumber: { startsWith: prefix } },
-    orderBy: { studentNumber: "desc" },
-    select: { studentNumber: true },
-  });
-  const n = last ? Number(last.studentNumber.slice(prefix.length)) + 1 : 1;
-  return `${prefix}${String(n).padStart(5, "0")}`;
+  const rows = await tx.studentProfile.findMany({ where: { studentNumber: { startsWith: prefix } }, select: { studentNumber: true } });
+  const max = rows.reduce((m, r) => Math.max(m, Number(r.studentNumber.slice(prefix.length)) || 0), 0);
+  return `${prefix}${String(max + 1).padStart(5, "0")}`;
 }
 
 export interface CreateStudentInput {
