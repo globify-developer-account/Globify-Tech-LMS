@@ -1,6 +1,7 @@
 // Plain JavaScript on purpose: hosts whose glibc is too old for Next's native
 // SWC binary fall back to WebAssembly, which cannot compile a next.config.ts.
 import createNextIntlPlugin from "next-intl/plugin";
+import { PHASE_PRODUCTION_BUILD } from "next/constants.js";
 
 const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
@@ -26,6 +27,14 @@ const nextConfig = {
   poweredByHeader: false,
   output: process.env.DOCKER_BUILD ? "standalone" : undefined,
   serverExternalPackages: ["@prisma/client", "bcryptjs", "bullmq", "ioredis", "pdf-lib", "exceljs", "nodemailer"],
+  // The production build host (Hostinger) reports 64 CPUs but caps the threads
+  // a build may create. Next sizes its worker pool from the CPU count, so it
+  // started 63 page-data workers and the native toolchain then aborted with
+  // "OS can't spawn worker thread (os error 11)". Keep the build small.
+  experimental: {
+    cpus: 2,
+    webpackBuildWorker: false,
+  },
   images: {
     formats: ["image/avif", "image/webp"],
     remotePatterns: [
@@ -48,4 +57,12 @@ const nextConfig = {
   },
 };
 
-export default withNextIntl(nextConfig);
+export default function config(phase) {
+  if (phase === PHASE_PRODUCTION_BUILD) {
+    // Same host limit: SWC's Rust thread pools otherwise start one thread per
+    // reported CPU in every build process. Workers inherit these at spawn.
+    process.env.TOKIO_WORKER_THREADS ??= "2";
+    process.env.RAYON_NUM_THREADS ??= "2";
+  }
+  return withNextIntl(nextConfig);
+}
