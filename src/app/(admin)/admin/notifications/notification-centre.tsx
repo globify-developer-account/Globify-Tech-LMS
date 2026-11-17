@@ -21,14 +21,15 @@ import { enumLabel, relativeTime } from "@/lib/utils";
 interface Template { id: string; event: string; channel: string; locale: string; subject: string; body: string; isActive: boolean }
 interface Recent { id: string; event: string; channel: string; title: string; status: string; user: string; createdAt: string; error: string | null }
 
-const CHANNELS = ["IN_APP", "EMAIL", "WHATSAPP", "SMS"] as const;
+// PUSH reaches the Android app; people without the app are skipped automatically.
+const CHANNELS = ["IN_APP", "PUSH", "EMAIL", "WHATSAPP", "SMS"] as const;
 const PLACEHOLDERS = "{{name}} {{firstName}} {{course}} {{number}} {{amount}} {{due}}";
 
 export function NotificationCentre({ templates, recent, events, courses }: { templates: Template[]; recent: Recent[]; events: string[]; courses: Array<{ id: string; title: string }> }) {
   const router = useRouter();
   const [editing, setEditing] = React.useState<Partial<Template> | null>(null);
   const [broadcast, setBroadcast] = React.useState(false);
-  const [message, setMessage] = React.useState({ title: "", body: "", audience: "ALL_STUDENTS" as "ALL_STUDENTS" | "ALL_INSTRUCTORS" | "COURSE", courseId: "", channels: ["IN_APP"] as string[] });
+  const [message, setMessage] = React.useState({ title: "", body: "", audience: "ALL_STUDENTS" as "ALL_STUDENTS" | "ALL_INSTRUCTORS" | "COURSE", courseId: "", channels: ["IN_APP", "PUSH"] as string[] });
   const [errors, setErrors] = React.useState<Record<string, string[]>>({});
   const [pending, start] = React.useTransition();
   return (
@@ -86,7 +87,7 @@ export function NotificationCentre({ templates, recent, events, courses }: { tem
               <Field label="Channel" htmlFor="nt-channel"><SimpleSelect value={editing.channel ?? "EMAIL"} onValueChange={(v) => setEditing({ ...editing, channel: v })} options={CHANNELS.map((c) => ({ value: c, label: enumLabel(c) }))} /></Field>
               <Field label="Locale" htmlFor="nt-locale"><Input id="nt-locale" value={editing.locale ?? "en"} onChange={(e) => setEditing({ ...editing, locale: e.target.value })} /></Field>
               <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2"><Label htmlFor="nt-active">Active</Label><Switch id="nt-active" checked={editing.isActive ?? true} onCheckedChange={(v) => setEditing({ ...editing, isActive: v })} /></div>
-              {editing.channel === "EMAIL" ? <Field label="Subject" htmlFor="nt-subject" className="sm:col-span-2"><Input id="nt-subject" value={editing.subject ?? ""} onChange={(e) => setEditing({ ...editing, subject: e.target.value })} /></Field> : null}
+              {editing.channel === "EMAIL" || editing.channel === "PUSH" ? <Field label={editing.channel === "PUSH" ? "Title" : "Subject"} htmlFor="nt-subject" className="sm:col-span-2"><Input id="nt-subject" value={editing.subject ?? ""} onChange={(e) => setEditing({ ...editing, subject: e.target.value })} /></Field> : null}
               <Field label="Body" htmlFor="nt-body" error={errors.body} required className="sm:col-span-2"><Textarea id="nt-body" rows={6} value={editing.body ?? ""} onChange={(e) => setEditing({ ...editing, body: e.target.value })} /></Field>
             </div>
           ) : null}

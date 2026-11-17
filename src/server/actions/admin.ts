@@ -699,7 +699,7 @@ export const saveNotificationTemplateAction = async (input: { id?: string; event
 export const broadcastAnnouncementAction = async (input: { title: string; body: string; audience: "ALL_STUDENTS" | "ALL_INSTRUCTORS" | "COURSE"; courseId?: string | null; channels: string[] }): R<{ count: number }> =>
   wrap(async () => {
     const user = await requirePermission("notifications.manage");
-    const d = v(z.object({ title: nonEmpty.max(200), body: nonEmpty.max(5000), audience: z.enum(["ALL_STUDENTS", "ALL_INSTRUCTORS", "COURSE"]), courseId: uuid.nullable().optional(), channels: z.array(z.enum(["IN_APP", "EMAIL", "WHATSAPP", "SMS"])).min(1) }), input);
+    const d = v(z.object({ title: nonEmpty.max(200), body: nonEmpty.max(5000), audience: z.enum(["ALL_STUDENTS", "ALL_INSTRUCTORS", "COURSE"]), courseId: uuid.nullable().optional(), channels: z.array(z.enum(["IN_APP", "PUSH", "EMAIL", "WHATSAPP", "SMS"])).min(1) }), input);
     const users = d.audience === "COURSE" && d.courseId ? (await prisma.enrollment.findMany({ where: { courseId: d.courseId, status: "ACTIVE" }, select: { student: { select: { userId: true } } } })).map((e) => e.student.userId) : (await prisma.user.findMany({ where: { status: "ACTIVE", roles: { some: { role: { key: d.audience === "ALL_STUDENTS" ? "STUDENT" : "INSTRUCTOR" } } } }, select: { id: true } })).map((u) => u.id);
     const { notify } = await import("@/server/services/notifications");
     await Promise.all(users.map((userId) => notify({ userId, event: "ANNOUNCEMENT", data: { title: d.title }, channels: d.channels as never, fallback: { title: d.title, body: d.body } })));
