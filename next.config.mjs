@@ -1,9 +1,16 @@
 // Plain JavaScript on purpose: hosts whose glibc is too old for Next's native
 // SWC binary fall back to WebAssembly, which cannot compile a next.config.ts.
 import createNextIntlPlugin from "next-intl/plugin";
-import { PHASE_PRODUCTION_BUILD } from "next/constants.js";
 
 const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
+
+// Production builds only. The build host reports 64 CPUs but caps threads, and
+// SWC's Rust thread pools otherwise start one thread per reported CPU in every
+// build process. Build workers inherit these when they are spawned.
+if (process.argv.includes("build")) {
+  process.env.TOKIO_WORKER_THREADS ??= "2";
+  process.env.RAYON_NUM_THREADS ??= "2";
+}
 
 const isProd = process.env.NODE_ENV === "production";
 
@@ -57,12 +64,7 @@ const nextConfig = {
   },
 };
 
-export default function config(phase) {
-  if (phase === PHASE_PRODUCTION_BUILD) {
-    // Same host limit: SWC's Rust thread pools otherwise start one thread per
-    // reported CPU in every build process. Workers inherit these at spawn.
-    process.env.TOKIO_WORKER_THREADS ??= "2";
-    process.env.RAYON_NUM_THREADS ??= "2";
-  }
-  return withNextIntl(nextConfig);
-}
+// Must stay a plain object export: Hostinger wraps this file to add
+// `output: "standalone"`, and a function export loses both that and these
+// settings ("Next.js build produced no standalone server or static output").
+export default withNextIntl(nextConfig);
