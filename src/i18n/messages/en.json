@@ -205,6 +205,7 @@
       "messages": "Messages",
       "notifications": "Notifications",
       "settings": "Settings",
+      "referrals": "Refer a friend",
       "ai": "Globify AI"
     }
   },
@@ -256,6 +257,7 @@
       "certificates": "Certificates",
       "internships": "Internships",
       "jobs": "Jobs",
+      "referrals": "Referrals",
       "employers": "Employers",
       "alumni": "Alumni",
       "blog": "Blog",

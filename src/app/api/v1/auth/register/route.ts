@@ -7,6 +7,7 @@ import { enforceRateLimit } from "@/server/rate-limit";
 import { audit } from "@/server/audit";
 import { passwordProblem } from "@/server/auth/password";
 import { AppError } from "@/server/errors";
+import { applyReferralAtSignup, findReferrer } from "@/server/services/referrals";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +18,7 @@ const schema = z.object({
   password: z.string().min(8).max(200),
   acceptTerms: z.literal(true),
   device: z.string().max(120).optional(),
+  referralCode: z.string().trim().max(40).optional(),
 });
 
 /**
@@ -30,7 +32,16 @@ export const POST = handle(async (req) => {
   const input = schema.parse(await readJson(req));
   const problem = passwordProblem(input.password);
   if (problem) throw AppError.validation(problem);
+  // Check the code before creating the account, so a typo can be fixed in the form.
+  if (input.referralCode && !(await findReferrer(input.referralCode))) {
+    throw AppError.validation("That referral code isn't valid. Check it with your friend, or leave it empty.");
+  }
   const { user } = await createStudentAccount({ name: input.name, email: input.email, password: input.password, phone: input.phone || null });
+  if (input.referralCode) {
+    await applyReferralAtSignup(user.id, input.referralCode).catch((error: Error) =>
+      console.error(JSON.stringify({ level: "error", msg: "signup referral failed", err: error.message })),
+    );
+  }
   // The account exists either way: a broken mail provider must not fail the
   // sign-up (the student can resend the verification email later).
   try {

@@ -5,6 +5,7 @@ import { enqueue } from "@/server/jobs";
 import { emailLayout, emailProvider } from "@/server/providers/email";
 import { whatsappProvider, normalizePhone } from "@/server/providers/whatsapp";
 import { smsProvider } from "@/server/providers/sms";
+import { canPush, pushToUser } from "@/server/services/devices";
 import { log } from "@/server/log";
 import { absoluteUrl } from "@/lib/utils";
 
@@ -19,24 +20,28 @@ export interface NotifyInput {
   fallback?: { title: string; body: string };
 }
 
-/** Default channel routing per event (admins can override via templates). */
+/**
+ * Default channel routing per event (admins can override via templates).
+ * PUSH reaches the mobile app and is skipped for people without it.
+ */
 const DEFAULT_CHANNELS: Partial<Record<NotificationEvent, NotificationChannel[]>> = {
   WELCOME: ["IN_APP", "EMAIL"],
   EMAIL_VERIFICATION: ["EMAIL"],
   PASSWORD_RESET: ["EMAIL"],
-  ENROLLMENT: ["IN_APP", "EMAIL", "WHATSAPP"],
-  PAYMENT_RECEIVED: ["IN_APP", "EMAIL", "WHATSAPP"],
-  PAYMENT_DUE: ["IN_APP", "EMAIL", "WHATSAPP"],
-  CLASS_REMINDER: ["IN_APP", "WHATSAPP"],
-  ASSIGNMENT_DEADLINE: ["IN_APP", "EMAIL"],
-  QUIZ_AVAILABLE: ["IN_APP"],
-  EXAM_SCHEDULED: ["IN_APP", "EMAIL"],
-  CERTIFICATE_ISSUED: ["IN_APP", "EMAIL", "WHATSAPP"],
-  ATTENDANCE_WARNING: ["IN_APP", "EMAIL", "WHATSAPP"],
-  ANNOUNCEMENT: ["IN_APP"],
-  MESSAGE: ["IN_APP"],
-  APPLICATION_STATUS: ["IN_APP", "EMAIL", "WHATSAPP"],
+  ENROLLMENT: ["IN_APP", "EMAIL", "WHATSAPP", "PUSH"],
+  PAYMENT_RECEIVED: ["IN_APP", "EMAIL", "WHATSAPP", "PUSH"],
+  PAYMENT_DUE: ["IN_APP", "EMAIL", "WHATSAPP", "PUSH"],
+  CLASS_REMINDER: ["IN_APP", "WHATSAPP", "PUSH"],
+  ASSIGNMENT_DEADLINE: ["IN_APP", "EMAIL", "PUSH"],
+  QUIZ_AVAILABLE: ["IN_APP", "PUSH"],
+  EXAM_SCHEDULED: ["IN_APP", "EMAIL", "PUSH"],
+  CERTIFICATE_ISSUED: ["IN_APP", "EMAIL", "WHATSAPP", "PUSH"],
+  ATTENDANCE_WARNING: ["IN_APP", "EMAIL", "WHATSAPP", "PUSH"],
+  ANNOUNCEMENT: ["IN_APP", "PUSH"],
+  MESSAGE: ["IN_APP", "PUSH"],
+  APPLICATION_STATUS: ["IN_APP", "EMAIL", "WHATSAPP", "PUSH"],
   LEAD_ASSIGNED: ["IN_APP"],
+  REFERRAL: ["IN_APP", "PUSH"],
   RISK_ALERT: ["IN_APP", "EMAIL"],
   BACKUP_ALERT: ["IN_APP", "EMAIL"],
   SYSTEM: ["IN_APP"],
@@ -59,6 +64,7 @@ export async function notify(input: NotifyInput): Promise<void> {
   const templates = await prisma.notificationTemplate.findMany({ where: { event: input.event, channel: { in: channels }, isActive: true, locale: { in: [user.locale, "en"] } } });
 
   for (const channel of channels) {
+    if (channel === "PUSH" && !(await canPush(user.id))) continue;
     const template = templates.find((t) => t.channel === channel && t.locale === user.locale) ?? templates.find((t) => t.channel === channel);
     const title = template?.subject ? renderTemplate(template.subject, data) : (input.fallback?.title ?? input.event.replaceAll("_", " "));
     const body = template ? renderTemplate(template.body, data) : (input.fallback?.body ?? "");
@@ -102,8 +108,8 @@ export async function dispatchNotification(notificationId: string): Promise<void
       if (!to) throw new Error("No phone number");
       await smsProvider().send(normalizePhone(to), `${n.title}: ${n.body}`.slice(0, 320));
     } else if (n.channel === "PUSH") {
-      // Push-ready: device tokens table can be added without schema redesign; queued rows stay for a future push worker.
-      throw new Error("Push delivery not configured");
+      const reached = await pushToUser(n.userId, { title: n.title, body: n.body, href: n.href, data: { notificationId: n.id } });
+      if (!reached) throw new Error("No reachable devices");
     }
     await prisma.notification.update({ where: { id: n.id }, data: { status: "SENT", sentAt: new Date() } });
   } catch (error) {

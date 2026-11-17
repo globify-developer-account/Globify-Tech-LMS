@@ -29,6 +29,11 @@ export const SETTING_DEFAULTS = {
   "features.applyOnline": true,
   "features.jobsBoard": true,
   "features.portfolio": true,
+  "referrals.enabled": true,
+  "referrals.friendDiscountPercent": 10,
+  "referrals.referrerDiscountPercent": 10,
+  "referrals.couponValidDays": 90,
+  "referrals.paidCoursesOnly": true,
 } as const;
 
 export type SettingKey = keyof typeof SETTING_DEFAULTS;

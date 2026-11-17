@@ -346,6 +346,7 @@ enum NotificationEvent {
   LEAD_ASSIGNED
   RISK_ALERT
   BACKUP_ALERT
+  REFERRAL
   SYSTEM
 }
 
@@ -476,6 +477,8 @@ model User {
   invoicesIssued             Invoice[]                 @relation("InvoiceIssuer")
   liveClassesHosted          LiveClass[]               @relation("LiveClassHost")
   verificationTokens         VerificationToken[]
+  deviceTokens               DeviceToken[]
+  referredBy                 Referral?                 @relation("ReferralReferee")
 
   @@index([status])
   @@index([deletedAt])
@@ -631,6 +634,9 @@ model StudentProfile {
   liveAttendance     LiveClassAttendance[]
   lessonNotes        LessonNote[]
   bookmarks          LessonBookmark[]
+  /// Personal code friends enter at sign-up; generated on first use.
+  referralCode       String?                @unique
+  referrals          Referral[]
 
   @@index([campusId])
   @@map("students")
@@ -2066,7 +2072,9 @@ model Discount {
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 
-  invoices Invoice[]
+  invoices        Invoice[]
+  referralWelcome Referral? @relation("ReferralFriendDiscount")
+  referralReward  Referral? @relation("ReferralReferrerDiscount")
 
   @@map("discounts")
 }
@@ -3067,4 +3075,56 @@ model LearningActivity {
 
   @@unique([userId, date])
   @@map("learning_activity")
+}
+
+// ───────────── Mobile push & referrals ─────────────
+
+enum DevicePlatform {
+  ANDROID
+  IOS
+}
+
+/// A phone that can receive push notifications (FCM registration token).
+model DeviceToken {
+  id         String         @id @default(uuid()) @db.Uuid
+  userId     String         @db.Uuid
+  token      String         @unique
+  platform   DevicePlatform
+  appVersion String?
+  lastSeenAt DateTime       @default(now())
+  createdAt  DateTime       @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("device_tokens")
+}
+
+enum ReferralStatus {
+  SIGNED_UP
+  REWARDED
+  VOID
+}
+
+/// A friend who signed up with a student's referral code. The friend gets a
+/// welcome discount at sign-up; the referrer is rewarded when the friend enrols.
+model Referral {
+  id                 String         @id @default(uuid()) @db.Uuid
+  referrerId         String         @db.Uuid
+  refereeUserId      String         @unique @db.Uuid
+  code               String
+  status             ReferralStatus @default(SIGNED_UP)
+  friendDiscountId   String?        @unique @db.Uuid
+  referrerDiscountId String?        @unique @db.Uuid
+  enrollmentId       String?        @db.Uuid
+  rewardedAt         DateTime?
+  createdAt          DateTime       @default(now())
+
+  referrer         StudentProfile @relation(fields: [referrerId], references: [id], onDelete: Cascade)
+  referee          User           @relation("ReferralReferee", fields: [refereeUserId], references: [id], onDelete: Cascade)
+  friendDiscount   Discount?      @relation("ReferralFriendDiscount", fields: [friendDiscountId], references: [id], onDelete: SetNull)
+  referrerDiscount Discount?      @relation("ReferralReferrerDiscount", fields: [referrerDiscountId], references: [id], onDelete: SetNull)
+
+  @@index([referrerId, createdAt])
+  @@map("referrals")
 }

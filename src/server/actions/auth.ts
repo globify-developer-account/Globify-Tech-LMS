@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { AuthError } from "next-auth";
 import { signIn, signOut } from "@/server/auth/config";
 import { prisma } from "@/server/db/prisma";
@@ -9,6 +10,8 @@ import { enforceRateLimit } from "@/server/rate-limit";
 import { requestMeta } from "@/server/audit";
 import { generateToken, hashPassword, hashToken, verifyPassword } from "@/server/auth/password";
 import { createStudentAccount, bumpSessionVersion } from "@/server/services/users";
+import { applyReferralAtSignup } from "@/server/services/referrals";
+import { REFERRAL_COOKIE } from "@/lib/referrals";
 import { emailLayout, emailProvider } from "@/server/providers/email";
 import { requireUser } from "@/server/auth/session";
 import { changePasswordSchema, requestResetSchema, resetPasswordSchema, signInSchema, signUpSchema } from "@/lib/validation/auth";
@@ -78,6 +81,13 @@ export async function signUpAction(_prev: ActionResult<{ redirectTo: string }> |
       password: parsed.data.password,
       phone: parsed.data.phone || null,
     });
+    // Credit the friend whose /r/:code link brought this visitor here.
+    const cookieStore = await cookies();
+    const referralCode = cookieStore.get(REFERRAL_COOKIE)?.value;
+    if (referralCode) {
+      await applyReferralAtSignup(user.id, referralCode).catch((error: Error) => log.warn("signup referral failed", { userId: user.id, error: error.message }));
+      cookieStore.delete(REFERRAL_COOKIE);
+    }
     await sendVerificationEmail(user.id, user.email, user.name);
     await audit({ actorId: user.id, actorRoles: ["STUDENT"], action: "auth.signup", entityType: "User", entityId: user.id });
     await signIn("credentials", { email: parsed.data.email, password: parsed.data.password, redirect: false });

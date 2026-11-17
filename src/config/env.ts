@@ -63,6 +63,12 @@ const schema = z.object({
   ZOOM_CLIENT_ID: z.string().optional(),
   ZOOM_CLIENT_SECRET: z.string().optional(),
   ZOOM_WEBHOOK_SECRET: z.string().optional(),
+  /** OAuth client for the Google Meet connection (falls back to AUTH_GOOGLE_*). */
+  GOOGLE_MEET_CLIENT_ID: z.string().optional(),
+  GOOGLE_MEET_CLIENT_SECRET: z.string().optional(),
+
+  /** Firebase service-account JSON (raw or base64) for app push via FCM. */
+  FIREBASE_SERVICE_ACCOUNT: z.string().optional(),
 
   AUTH_GOOGLE_ID: z.string().optional(),
   AUTH_GOOGLE_SECRET: z.string().optional(),

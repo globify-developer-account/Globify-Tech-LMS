@@ -1,6 +1,7 @@
 import "server-only";
 import { env } from "@/config/env";
 import { log } from "@/server/log";
+import { GoogleMeetProvider } from "./google-meet";
 
 export interface MeetingRequest {
   title: string;
@@ -8,6 +9,8 @@ export interface MeetingRequest {
   endsAt: Date;
   hostEmail?: string | null;
   description?: string | null;
+  /** Invited as guests where the platform supports it (Google Meet). */
+  attendeeEmails?: string[];
 }
 
 export interface Meeting {
@@ -76,37 +79,41 @@ class ZoomProvider implements LiveClassProvider {
   }
 }
 
-/**
- * Google Meet and Teams require OAuth-delegated calendar access; the interface
- * is in place and the drivers degrade to manual links until credentials exist.
- */
-class GoogleMeetProvider extends ManualProvider {
-  override readonly name = "GOOGLE_MEET" as never;
-}
+/** Teams requires OAuth-delegated calendar access; until then it degrades to manual links. */
 class TeamsProvider extends ManualProvider {
   override readonly name = "MICROSOFT_TEAMS" as never;
 }
 
-let provider: LiveClassProvider | undefined;
-export function liveClassProvider(): LiveClassProvider {
-  if (provider) return provider;
+const providers = new Map<Meeting["provider"], LiveClassProvider>();
+
+/**
+ * The driver for a class's chosen platform (`kind`), or for the server's
+ * LIVE_CLASS_DRIVER when none is given. Google Meet is connected from Admin →
+ * Settings; Zoom needs its server-to-server credentials in the environment.
+ */
+export function liveClassProvider(kind?: Meeting["provider"]): LiveClassProvider {
   const e = env();
-  switch (e.LIVE_CLASS_DRIVER) {
-    case "zoom":
+  const requested = kind ?? ({ zoom: "ZOOM", google_meet: "GOOGLE_MEET", teams: "MICROSOFT_TEAMS", manual: "MANUAL" } as const)[e.LIVE_CLASS_DRIVER];
+  const cached = providers.get(requested);
+  if (cached) return cached;
+  let provider: LiveClassProvider;
+  switch (requested) {
+    case "ZOOM":
       if (e.ZOOM_ACCOUNT_ID && e.ZOOM_CLIENT_ID && e.ZOOM_CLIENT_SECRET) provider = new ZoomProvider();
       else {
-        log.warn("LIVE_CLASS_DRIVER=zoom but credentials are missing; using manual links");
+        log.warn("Zoom credentials are missing; using manual links");
         provider = new ManualProvider();
       }
       break;
-    case "google_meet":
+    case "GOOGLE_MEET":
       provider = new GoogleMeetProvider();
       break;
-    case "teams":
+    case "MICROSOFT_TEAMS":
       provider = new TeamsProvider();
       break;
     default:
       provider = new ManualProvider();
   }
+  providers.set(requested, provider);
   return provider;
 }

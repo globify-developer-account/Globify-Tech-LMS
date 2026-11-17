@@ -3,6 +3,8 @@ import { prisma, type Prisma } from "@/server/db/prisma";
 import { AppError } from "@/server/errors";
 import { notify } from "@/server/services/notifications";
 import { recomputeCourseStats } from "@/server/services/courses";
+import { rewardReferralOnEnrollment } from "@/server/services/referrals";
+import { log } from "@/server/log";
 import type { EnrollmentSource } from "@prisma/client";
 
 export interface EnrollInput {
@@ -23,6 +25,8 @@ export async function enrollStudent(input: EnrollInput) {
     if (input.batchId && existing.batchId !== input.batchId) {
       await assignBatch(existing.id, input.batchId);
     }
+    // A retry after an enrolment that failed half-way still credits the referrer (rewards pay once).
+    await rewardReferral(input, existing.id);
     return existing;
   }
 
@@ -60,7 +64,15 @@ export async function enrollStudent(input: EnrollInput) {
       fallback: { title: `You're enrolled in ${course.title}`, body: "Your learning space is ready. Open the course to start your first lesson." },
     });
   }
+  await rewardReferral(input, enrollment.id);
   return enrollment;
+}
+
+/** A referral reward must never block the enrolment itself. */
+async function rewardReferral(input: EnrollInput, enrollmentId: string) {
+  await rewardReferralOnEnrollment({ studentId: input.studentId, courseId: input.courseId, enrollmentId }).catch((error: Error) =>
+    log.warn("referral reward failed", { enrollmentId, error: error.message }),
+  );
 }
 
 export async function assignBatch(enrollmentId: string, batchId: string) {

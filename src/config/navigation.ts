@@ -62,6 +62,7 @@ export const STUDENT_NAV: NavGroup[] = [
     key: "platform",
     items: [
       { key: "payments", href: "/student/payments", icon: "CreditCard" },
+      { key: "referrals", href: "/student/referrals", icon: "Gift" },
       { key: "settings", href: "/student/settings", icon: "Settings" },
     ],
   },
@@ -161,6 +162,7 @@ export const ADMIN_NAV: NavGroup[] = [
       { key: "invoices", href: "/admin/invoices", icon: "Receipt", permission: "payments.read" },
       { key: "discounts", href: "/admin/discounts", icon: "BadgePercent", permission: "discounts.manage" },
       { key: "scholarships", href: "/admin/scholarships", icon: "HandCoins", permission: "discounts.manage" },
+      { key: "referrals", href: "/admin/referrals", icon: "Gift", permission: "discounts.manage" },
     ],
   },
   {

@@ -11,7 +11,8 @@ export async function scheduleLiveClass(input: LiveClassInput, hostId: string) {
   const host = await prisma.user.findUnique({ where: { id: hostId }, select: { email: true } });
   let meeting = { provider: input.provider, meetingId: input.meetingId || null, joinUrl: input.meetingUrl || null, passcode: input.meetingPasscode || null };
   if (!meeting.joinUrl && input.provider !== "MANUAL") {
-    const created = await liveClassProvider().createMeeting({ title: input.title, startsAt: input.startsAt, endsAt: input.endsAt, hostEmail: host?.email, description: input.description });
+    const attendeeEmails = input.provider === "GOOGLE_MEET" ? await classEmails(input.courseId, input.batchId ?? null) : undefined;
+    const created = await liveClassProvider(input.provider).createMeeting({ title: input.title, startsAt: input.startsAt, endsAt: input.endsAt, hostEmail: host?.email, description: input.description, attendeeEmails });
     meeting = { provider: created.provider, meetingId: created.meetingId, joinUrl: created.joinUrl, passcode: created.passcode };
   }
   const liveClass = await prisma.liveClass.create({
@@ -46,11 +47,19 @@ export async function updateLiveClass(id: string, input: { status?: "SCHEDULED" 
     await prisma.liveClassRecording.create({ data: { liveClassId: id, url: input.recordingUrl || null, mediaId: input.recordingMediaId ?? null } });
   }
   if (input.status === "CANCELLED") {
-    if (existing.meetingId && existing.provider === "ZOOM") await liveClassProvider().cancelMeeting(existing.meetingId).catch(() => undefined);
+    if (existing.meetingId && (existing.provider === "ZOOM" || existing.provider === "GOOGLE_MEET")) await liveClassProvider(existing.provider).cancelMeeting(existing.meetingId).catch(() => undefined);
     await notifyBatch(id, "cancelled");
   }
   if (input.status === "COMPLETED" && (input.transcript || input.notes)) await enqueue("liveclass.summarize", { liveClassId: id });
   return updated;
+}
+
+/** Emails of the students a class is for: its batch, or everyone active on the course. */
+async function classEmails(courseId: string, batchId: string | null): Promise<string[]> {
+  const rows = batchId
+    ? await prisma.batchStudent.findMany({ where: { batchId, leftAt: null }, select: { student: { select: { user: { select: { email: true } } } } } })
+    : await prisma.enrollment.findMany({ where: { courseId, status: "ACTIVE" }, select: { student: { select: { user: { select: { email: true } } } } } });
+  return [...new Set(rows.map((r) => r.student.user.email))];
 }
 
 async function notifyBatch(liveClassId: string, kind: "scheduled" | "cancelled" | "reminder") {
