@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Ticket } from "lucide-react";
+import { Plus, QrCode, Ticket } from "lucide-react";
 import { saveDiscountAction } from "@/server/actions/admin";
 import { AdminTable, Row, Cell } from "@/components/admin/table";
 import { Button } from "@/components/ui/button";
@@ -17,14 +17,17 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { EmptyState } from "@/components/ui/empty-state";
 import { toast } from "@/components/ui/toaster";
 import { formatDate, formatMoney } from "@/lib/utils";
+import { OfferQrDialog } from "./offer-qr-dialog";
 
-export interface DiscountRow { id: string; code: string; name: string; type: "PERCENT" | "FIXED"; value: number; maxUses: number | null; usedCount: number; validFrom: string; validTo: string; courseIds: string[]; isActive: boolean; invoices: number }
+/** `personal`: a one-person referral coupon (WELCOME-/REF-), which is never shared as an offer QR. */
+export interface DiscountRow { id: string; code: string; name: string; type: "PERCENT" | "FIXED"; value: number; maxUses: number | null; usedCount: number; validFrom: string; validTo: string; courseIds: string[]; isActive: boolean; invoices: number; personal: boolean }
 
-const EMPTY: Omit<DiscountRow, "id" | "usedCount" | "invoices"> = { code: "", name: "", type: "PERCENT", value: 10, maxUses: null, validFrom: "", validTo: "", courseIds: [], isActive: true };
+const EMPTY: Omit<DiscountRow, "id" | "usedCount" | "invoices" | "personal"> = { code: "", name: "", type: "PERCENT", value: 10, maxUses: null, validFrom: "", validTo: "", courseIds: [], isActive: true };
 
-export function DiscountManager({ discounts, courses }: { discounts: DiscountRow[]; courses: Array<{ id: string; title: string }> }) {
+export function DiscountManager({ discounts, courses, offerLinkBase }: { discounts: DiscountRow[]; courses: Array<{ id: string; title: string }>; offerLinkBase: string }) {
   const router = useRouter();
   const [editing, setEditing] = React.useState<(typeof EMPTY & { id?: string }) | null>(null);
+  const [qrFor, setQrFor] = React.useState<DiscountRow | null>(null);
   const [errors, setErrors] = React.useState<Record<string, string[]>>({});
   const [pending, start] = React.useTransition();
   const save = () =>
@@ -51,7 +54,10 @@ export function DiscountManager({ discounts, courses }: { discounts: DiscountRow
               <Cell className="text-caption text-fg-muted">{d.validFrom ? formatDate(new Date(d.validFrom)) : "Always"}{d.validTo ? ` → ${formatDate(new Date(d.validTo))}` : ""}</Cell>
               <Cell align="end">{d.usedCount}{d.maxUses ? <span className="text-fg-subtle">/{d.maxUses}</span> : null}</Cell>
               <Cell>{d.isActive ? <Badge variant="success">Active</Badge> : <Badge>Inactive</Badge>}</Cell>
-              <Cell align="end"><Button variant="ghost" size="sm" onClick={() => setEditing({ ...d })}>Edit</Button></Cell>
+              <Cell align="end">
+                {d.personal ? null : <Button variant="ghost" size="sm" onClick={() => setQrFor(d)} aria-label={`QR code for ${d.code}`}><QrCode /> QR</Button>}
+                <Button variant="ghost" size="sm" onClick={() => setEditing({ ...d })}>Edit</Button>
+              </Cell>
             </Row>
           ))}
         </AdminTable>
@@ -87,6 +93,7 @@ export function DiscountManager({ discounts, courses }: { discounts: DiscountRow
           <DialogFooter><Button variant="ghost" onClick={() => setEditing(null)}>Cancel</Button><Button loading={pending} onClick={save}>Save discount</Button></DialogFooter>
         </DialogContent>
       </Dialog>
+      <OfferQrDialog offer={qrFor} linkBase={offerLinkBase} onClose={() => setQrFor(null)} />
     </div>
   );
 }

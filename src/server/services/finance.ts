@@ -131,6 +131,37 @@ export async function createInvoiceFromFeePlan(params: { studentId: string; enro
   return createInvoice({ studentId: params.studentId, enrollmentId: params.enrollmentId, feePlanId: plan.id, issuedById: params.issuedById, discountCode: params.discountCode, scholarshipAwardId: params.scholarshipAwardId, lines, dueDate: lines[0]?.dueDate ?? null });
 }
 
+/**
+ * A student adds a discount code to their own unpaid invoice (campaign offers,
+ * referral coupons). One code per invoice, and only before anything is paid.
+ */
+export async function applyDiscountToInvoice(params: { invoiceId: string; studentId: string; code: string }) {
+  const inv = await prisma.invoice.findFirst({
+    where: { id: params.invoiceId, studentId: params.studentId, deletedAt: null },
+    select: { id: true, status: true, subtotal: true, discountTotal: true, amountPaid: true, discountId: true, enrollment: { select: { courseId: true } } },
+  });
+  if (!inv) throw AppError.notFound("Invoice");
+  if (inv.discountId) throw AppError.conflict("This invoice already has a discount code.");
+  if (!(inv.status === "ISSUED" || inv.status === "OVERDUE") || toNumber(inv.amountPaid) > 0) throw AppError.conflict("A code can only be added before any payment is made.");
+  const subtotal = toNumber(inv.subtotal);
+  const v = await validateDiscount(params.code, inv.enrollment?.courseId ?? null, subtotal);
+  // Without a code, any existing discountTotal is a scholarship; the code stacks on top, capped at the subtotal.
+  const discountTotal = Math.min(subtotal, toNumber(inv.discountTotal) + v.discountAmount);
+  const total = Math.round((subtotal - discountTotal) * 100) / 100;
+  const applied = await prisma.$transaction(async (tx) => {
+    // Conditional on the state checked above, so a payment or a second code landing meanwhile wins.
+    const res = await tx.invoice.updateMany({
+      where: { id: inv.id, discountId: null, amountPaid: 0, status: { in: ["ISSUED", "OVERDUE"] } },
+      data: { discountId: v.discount.id, discountTotal, total, ...(total === 0 ? { status: "PAID" as const, paidAt: new Date() } : {}) },
+    });
+    if (res.count) await tx.discount.update({ where: { id: v.discount.id }, data: { usedCount: { increment: 1 } } });
+    return res.count > 0;
+  });
+  if (!applied) throw AppError.conflict("This invoice changed while the code was being applied. Please refresh and try again.");
+  await enqueue("invoice.render", { invoiceId: inv.id });
+  return { code: v.discount.code, discountAmount: v.discountAmount, total };
+}
+
 export async function voidInvoice(invoiceId: string) {
   const inv = await prisma.invoice.findUnique({ where: { id: invoiceId }, select: { amountPaid: true } });
   if (!inv) throw AppError.notFound("Invoice");

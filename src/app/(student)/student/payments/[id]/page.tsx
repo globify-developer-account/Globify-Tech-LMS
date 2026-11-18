@@ -9,6 +9,7 @@ import { Badge, statusVariant } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
 import { Checkout } from "@/components/lms/checkout";
+import { DiscountCodeForm } from "@/components/lms/discount-code-form";
 import { enumLabel, formatDate, formatDateTime, formatMoney, toNumber } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Invoice" };
@@ -68,7 +69,10 @@ export default async function InvoicePage({ params, searchParams }: { params: Pr
         <aside className="lg:col-span-5">
           <div className="surface sticky top-20 p-6">
             {balance > 0 && inv.status !== "VOID" ? (
-              <Checkout invoiceId={inv.id} amount={balance} currency={inv.currency} providers={providers} />
+              <div className="flex flex-col gap-5">
+                {!inv.discountId && toNumber(inv.amountPaid) === 0 && (inv.status === "ISSUED" || inv.status === "OVERDUE") ? <DiscountCodeForm invoiceId={inv.id} currency={inv.currency} /> : null}
+                <Checkout invoiceId={inv.id} amount={balance} currency={inv.currency} providers={providers} />
+              </div>
             ) : (
               <div className="flex flex-col items-center gap-2 py-4 text-center">
                 <CheckCircle2 className="size-8 text-success" />

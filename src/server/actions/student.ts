@@ -21,6 +21,7 @@ import * as projects from "@/server/services/projects";
 import * as career from "@/server/services/career";
 import * as community from "@/server/services/community";
 import * as finance from "@/server/services/finance";
+import { enforceRateLimit } from "@/server/rate-limit";
 import { joinLiveClass } from "@/server/services/live-classes";
 import { studentCheckIn } from "@/server/services/batches";
 import { markRead } from "@/server/services/notifications";
@@ -216,6 +217,25 @@ export async function startCheckoutAction(input: z.infer<typeof checkoutSchema>)
     if (parsed.data.provider === "CASH") return fail(AppError.validation("Cash is recorded by finance staff at the campus."));
     const session = await finance.startCheckout({ invoiceId: parsed.data.invoiceId, studentId, provider: parsed.data.provider });
     return ok(session);
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+const discountCodeSchema = z.object({ invoiceId: uuid, code: z.string().trim().min(2, "Enter a code.").max(40) });
+
+/** Student adds a discount code (offer or referral coupon) to their own unpaid invoice. */
+export async function applyDiscountCodeAction(input: z.infer<typeof discountCodeSchema>): Promise<ActionResult<{ code: string; discountAmount: number; total: number }>> {
+  const parsed = discountCodeSchema.safeParse(input);
+  if (!parsed.success) return fail(AppError.validation(undefined, fieldErrors(parsed.error)));
+  try {
+    const { studentId } = await requireStudentProfile();
+    // Codes are guessable by trial and error; cap attempts per student.
+    await enforceRateLimit(`discount-code:${studentId}`, 10, 3600);
+    const result = await finance.applyDiscountToInvoice({ invoiceId: parsed.data.invoiceId, studentId, code: parsed.data.code });
+    revalidatePath(`/student/payments/${parsed.data.invoiceId}`);
+    revalidatePath("/student/payments");
+    return ok(result);
   } catch (error) {
     return fail(error);
   }
