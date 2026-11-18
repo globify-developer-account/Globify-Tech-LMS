@@ -25,11 +25,26 @@ interface Recent { id: string; event: string; channel: string; title: string; st
 const CHANNELS = ["IN_APP", "PUSH", "EMAIL", "WHATSAPP", "SMS"] as const;
 const PLACEHOLDERS = "{{name}} {{firstName}} {{course}} {{number}} {{amount}} {{due}}";
 
-export function NotificationCentre({ templates, recent, events, courses }: { templates: Template[]; recent: Recent[]; events: string[]; courses: Array<{ id: string; title: string }> }) {
+type Audience = "APP_DEVICES" | "ALL_STUDENTS" | "ALL_INSTRUCTORS" | "COURSE";
+const AUDIENCES: Array<{ value: Audience; label: string }> = [
+  { value: "APP_DEVICES", label: "Everyone with the app (signed in or not)" },
+  { value: "ALL_STUDENTS", label: "All students" },
+  { value: "ALL_INSTRUCTORS", label: "All instructors" },
+  { value: "COURSE", label: "Students on one course" },
+];
+const phones = (n: number) => `${n} ${n === 1 ? "phone" : "phones"}`;
+
+/** Phones with the app registered for push: signed-in students plus guests. */
+interface AppReach { total: number; signedIn: number; guests: number; pushReady: boolean }
+
+export function NotificationCentre({ templates, recent, events, courses, appReach }: { templates: Template[]; recent: Recent[]; events: string[]; courses: Array<{ id: string; title: string; slug: string }>; appReach: AppReach }) {
   const router = useRouter();
   const [editing, setEditing] = React.useState<Partial<Template> | null>(null);
   const [broadcast, setBroadcast] = React.useState(false);
-  const [message, setMessage] = React.useState({ title: "", body: "", audience: "ALL_STUDENTS" as "ALL_STUDENTS" | "ALL_INSTRUCTORS" | "COURSE", courseId: "", channels: ["IN_APP", "PUSH"] as string[] });
+  const [message, setMessage] = React.useState({ title: "", body: "", audience: "ALL_STUDENTS" as Audience, courseId: "", channels: ["IN_APP", "PUSH"] as string[], href: "/" });
+  const toApp = message.audience === "APP_DEVICES";
+  // Where a tapped push opens in the app (website paths the app maps to screens).
+  const openOptions = [{ value: "/", label: "Home" }, { value: "/courses", label: "All courses" }, { value: "/events", label: "Events" }, ...courses.map((c) => ({ value: `/courses/${c.slug}`, label: c.title }))];
   const [errors, setErrors] = React.useState<Record<string, string[]>>({});
   const [pending, start] = React.useTransition();
   return (
@@ -101,14 +116,46 @@ export function NotificationCentre({ templates, recent, events, courses }: { tem
           <div className="grid gap-4">
             <Field label="Title" htmlFor="bc-title" error={errors.title} required><Input id="bc-title" value={message.title} onChange={(e) => setMessage({ ...message, title: e.target.value })} /></Field>
             <Field label="Message" htmlFor="bc-body" error={errors.body} required><Textarea id="bc-body" rows={4} value={message.body} onChange={(e) => setMessage({ ...message, body: e.target.value })} /></Field>
-            <Field label="Audience" htmlFor="bc-aud"><SimpleSelect value={message.audience} onValueChange={(v) => setMessage({ ...message, audience: v as typeof message.audience })} options={[{ value: "ALL_STUDENTS", label: "All students" }, { value: "ALL_INSTRUCTORS", label: "All instructors" }, { value: "COURSE", label: "Students on one course" }]} /></Field>
+            <Field label="Audience" htmlFor="bc-aud"><SimpleSelect value={message.audience} onValueChange={(v) => setMessage({ ...message, audience: v as Audience })} options={AUDIENCES} /></Field>
             {message.audience === "COURSE" ? <Field label="Course" htmlFor="bc-course"><SimpleSelect value={message.courseId} onValueChange={(v) => setMessage({ ...message, courseId: v })} options={courses.map((c) => ({ value: c.id, label: c.title }))} /></Field> : null}
-            <div className="grid gap-1.5">
-              <Label>Channels</Label>
-              <div className="flex flex-wrap gap-3">{CHANNELS.map((c) => <label key={c} className="flex items-center gap-2 text-sm"><Checkbox checked={message.channels.includes(c)} onCheckedChange={(v) => setMessage({ ...message, channels: v ? [...message.channels, c] : message.channels.filter((x) => x !== c) })} />{enumLabel(c)}</label>)}</div>
-            </div>
+            {toApp ? (
+              <>
+                <Field label="When tapped, open" htmlFor="bc-open"><SimpleSelect value={message.href} onValueChange={(v) => setMessage({ ...message, href: v })} options={openOptions} /></Field>
+                <p className="rounded-lg border border-border px-3 py-2 text-caption text-fg-muted">
+                  {!appReach.pushReady
+                    ? "Push isn't set up on this server yet, so the app can't be reached. Add FIREBASE_SERVICE_ACCOUNT in the hosting panel and redeploy."
+                    : appReach.total
+                      ? `A push notification to ${phones(appReach.total)} with the Globify Tech app: ${appReach.signedIn} signed in, ${appReach.guests} ${appReach.guests === 1 ? "guest" : "guests"}. Guests have no account, so this goes out as a push only. Keep it short: phones show the first line or two.`
+                      : "No phones have registered yet. A phone registers when someone opens the app: signed-in students from version 1.0.7, everyone else from 1.0.10."}
+                </p>
+              </>
+            ) : (
+              <div className="grid gap-1.5">
+                <Label>Channels</Label>
+                <div className="flex flex-wrap gap-3">{CHANNELS.map((c) => <label key={c} className="flex items-center gap-2 text-sm"><Checkbox checked={message.channels.includes(c)} onCheckedChange={(v) => setMessage({ ...message, channels: v ? [...message.channels, c] : message.channels.filter((x) => x !== c) })} />{enumLabel(c)}</label>)}</div>
+              </div>
+            )}
           </div>
-          <DialogFooter><Button variant="ghost" onClick={() => setBroadcast(false)}>Cancel</Button><Button loading={pending} disabled={!message.title.trim() || !message.body.trim() || !message.channels.length || (message.audience === "COURSE" && !message.courseId)} onClick={() => start(async () => { setErrors({}); const res = await broadcastAnnouncementAction({ title: message.title.trim(), body: message.body.trim(), audience: message.audience, courseId: message.courseId || null, channels: message.channels }); if (!res.ok) { setErrors(res.error.fields ?? {}); toast.error(res.error.message); return; } toast.success(`Sent to ${res.data.count} people.`); setBroadcast(false); setMessage({ ...message, title: "", body: "" }); router.refresh(); })}>Send broadcast</Button></DialogFooter>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setBroadcast(false)}>Cancel</Button>
+            <Button
+              loading={pending}
+              disabled={!message.title.trim() || !message.body.trim() || (toApp ? !appReach.pushReady || !appReach.total : !message.channels.length) || (message.audience === "COURSE" && !message.courseId)}
+              onClick={() =>
+                start(async () => {
+                  setErrors({});
+                  const res = await broadcastAnnouncementAction({ title: message.title.trim(), body: message.body.trim(), audience: message.audience, courseId: message.courseId || null, channels: toApp ? ["PUSH"] : message.channels, href: toApp ? message.href : null });
+                  if (!res.ok) { setErrors(res.error.fields ?? {}); toast.error(res.error.message); return; }
+                  toast.success(toApp ? `Sent to ${phones(res.data.count)}.${res.data.removed ? ` ${phones(res.data.removed)} no longer had the app and ${res.data.removed === 1 ? "was" : "were"} removed.` : ""}` : `Sent to ${res.data.count} people.`);
+                  setBroadcast(false);
+                  setMessage({ ...message, title: "", body: "" });
+                  router.refresh();
+                })
+              }
+            >
+              {toApp && appReach.pushReady && appReach.total ? `Send to ${phones(appReach.total)}` : "Send broadcast"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>

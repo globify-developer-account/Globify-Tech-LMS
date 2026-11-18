@@ -3085,16 +3085,17 @@ enum DevicePlatform {
 }
 
 /// A phone that can receive push notifications (FCM registration token).
+/// userId is null for a guest: the app is installed but nobody is signed in.
 model DeviceToken {
   id         String         @id @default(uuid()) @db.Uuid
-  userId     String         @db.Uuid
+  userId     String?        @db.Uuid
   token      String         @unique
   platform   DevicePlatform
   appVersion String?
   lastSeenAt DateTime       @default(now())
   createdAt  DateTime       @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@map("device_tokens")

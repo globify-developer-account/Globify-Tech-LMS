@@ -43,11 +43,19 @@ function parseServiceAccount(raw: string): ServiceAccount | null {
 class FcmProvider implements PushProvider {
   readonly name = "fcm";
   private token: { value: string; expiresAt: number } | null = null;
+  private refreshing: Promise<string> | null = null;
   constructor(private readonly sa: ServiceAccount) {}
 
-  /** OAuth2 JWT-bearer grant for the FCM scope, cached until shortly before expiry. */
+  /** OAuth2 JWT-bearer grant for the FCM scope, cached until shortly before expiry. Concurrent sends share one fetch. */
   private async accessToken(): Promise<string> {
     if (this.token && this.token.expiresAt > Date.now() + 60_000) return this.token.value;
+    this.refreshing ??= this.fetchAccessToken().finally(() => {
+      this.refreshing = null;
+    });
+    return this.refreshing;
+  }
+
+  private async fetchAccessToken(): Promise<string> {
     const now = Math.floor(Date.now() / 1000);
     const b64 = (o: object) => Buffer.from(JSON.stringify(o)).toString("base64url");
     const unsigned = `${b64({ alg: "RS256", typ: "JWT" })}.${b64({ iss: this.sa.client_email, scope: "https://www.googleapis.com/auth/firebase.messaging", aud: "https://oauth2.googleapis.com/token", iat: now, exp: now + 3600 })}`;
@@ -70,7 +78,7 @@ class FcmProvider implements PushProvider {
       body: JSON.stringify({
         message: {
           token,
-          notification: { title: message.title, body: message.body },
+          notification: { title: clip(message.title, 150), body: clip(message.body, 1000) },
           data: { ...(message.data ?? {}), ...(message.href ? { href: message.href } : {}) },
           // Matches the app's notification channel and the icon in its manifest.
           android: { priority: "high", notification: { channel_id: "default", icon: "notification_icon", color: "#2563FF" } },
@@ -80,9 +88,37 @@ class FcmProvider implements PushProvider {
     if (res.ok) return "sent";
     const text = await res.text();
     // The app was uninstalled or the token rotated: the caller forgets it.
-    if (res.status === 404 || /UNREGISTERED|registration-token-not-registered|INVALID_ARGUMENT.*token/i.test(text)) return "invalid-token";
-    throw new Error(`FCM send failed: ${res.status} ${text.slice(0, 300)}`);
+    if (isDeadTokenResponse(res.status, text)) return "invalid-token";
+    throw new Error(`FCM send failed: ${res.status} ${text.replace(/\s+/g, " ").slice(0, 300)}`);
   }
+}
+
+/**
+ * True when FCM says the token itself is no good, so the caller should forget
+ * it: the app was uninstalled (UNREGISTERED) or it isn't a valid token at all.
+ * FCM also answers INVALID_ARGUMENT for a bad payload, which must not cost the
+ * phone its registration, so that case also needs FCM's "registration token"
+ * message. SENDER_ID_MISMATCH is deliberately an error, not a dead token: it
+ * usually means the server's key is for another Firebase project, and
+ * forgetting tokens then would wipe every phone. FCM's error body is
+ * multi-line JSON, so it's parsed, not grepped.
+ */
+export function isDeadTokenResponse(status: number, text: string): boolean {
+  if (status === 404) return true;
+  let error: { status?: string; message?: string; details?: Array<{ errorCode?: string }> } | undefined;
+  try {
+    error = (JSON.parse(text) as { error?: typeof error }).error;
+  } catch {
+    return /UNREGISTERED|registration-token-not-registered/.test(text);
+  }
+  const codes = new Set([error?.status, ...(error?.details ?? []).map((d) => d.errorCode)]);
+  if (codes.has("UNREGISTERED")) return true;
+  return codes.has("INVALID_ARGUMENT") && /registration token/i.test(error?.message ?? "");
+}
+
+/** FCM rejects payloads over 4 KB; a push only shows a few lines anyway. */
+function clip(text: string, max: number): string {
+  return text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;
 }
 
 let provider: PushProvider | null | undefined;

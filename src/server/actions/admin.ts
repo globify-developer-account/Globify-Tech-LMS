@@ -696,15 +696,30 @@ export const saveNotificationTemplateAction = async (input: { id?: string; event
     return { id: t.id };
   });
 
-export const broadcastAnnouncementAction = async (input: { title: string; body: string; audience: "ALL_STUDENTS" | "ALL_INSTRUCTORS" | "COURSE"; courseId?: string | null; channels: string[] }): R<{ count: number }> =>
+export const broadcastAnnouncementAction = async (input: { title: string; body: string; audience: "APP_DEVICES" | "ALL_STUDENTS" | "ALL_INSTRUCTORS" | "COURSE"; courseId?: string | null; channels: string[]; href?: string | null }): R<{ count: number; removed: number }> =>
   wrap(async () => {
     const user = await requirePermission("notifications.manage");
-    const d = v(z.object({ title: nonEmpty.max(200), body: nonEmpty.max(5000), audience: z.enum(["ALL_STUDENTS", "ALL_INSTRUCTORS", "COURSE"]), courseId: uuid.nullable().optional(), channels: z.array(z.enum(["IN_APP", "PUSH", "EMAIL", "WHATSAPP", "SMS"])).min(1) }), input);
+    const d = v(z.object({ title: nonEmpty.max(200), body: nonEmpty.max(5000), audience: z.enum(["APP_DEVICES", "ALL_STUDENTS", "ALL_INSTRUCTORS", "COURSE"]), courseId: uuid.nullable().optional(), channels: z.array(z.enum(["IN_APP", "PUSH", "EMAIL", "WHATSAPP", "SMS"])).min(1), href: z.string().regex(/^\/[A-Za-z0-9/_-]*$/, "Pick a page from the list.").max(200).nullable().optional() }), input);
+
+    // Everyone with the app: a push to every registered phone, signed in or guest.
+    // Guests have no account, so there is no inbox row, email or WhatsApp for them.
+    if (d.audience === "APP_DEVICES") {
+      const { deviceReach, pushToAllDevices } = await import("@/server/services/devices");
+      const { pushProvider } = await import("@/server/providers/push");
+      if (!pushProvider()) throw AppError.unavailable("Push isn't set up on this server yet (FIREBASE_SERVICE_ACCOUNT).");
+      if (!(await deviceReach()).total) throw AppError.validation("No phones have registered for notifications yet.");
+      const result = await pushToAllDevices({ title: d.title, body: d.body, href: d.href ?? "/", data: { kind: "broadcast" } }).catch((error: Error) => {
+        throw AppError.unavailable(`The push couldn't be sent: ${error.message.slice(0, 240)}`);
+      });
+      await audit({ actorId: user.id, actorRoles: user.roles, action: "notification.broadcast", entityType: "Notification", after: { audience: d.audience, channels: ["PUSH"], title: d.title, href: d.href ?? "/", ...result } });
+      return { count: result.reached, removed: result.removed };
+    }
+
     const users = d.audience === "COURSE" && d.courseId ? (await prisma.enrollment.findMany({ where: { courseId: d.courseId, status: "ACTIVE" }, select: { student: { select: { userId: true } } } })).map((e) => e.student.userId) : (await prisma.user.findMany({ where: { status: "ACTIVE", roles: { some: { role: { key: d.audience === "ALL_STUDENTS" ? "STUDENT" : "INSTRUCTOR" } } } }, select: { id: true } })).map((u) => u.id);
     const { notify } = await import("@/server/services/notifications");
     await Promise.all(users.map((userId) => notify({ userId, event: "ANNOUNCEMENT", data: { title: d.title }, channels: d.channels as never, fallback: { title: d.title, body: d.body } })));
     await audit({ actorId: user.id, actorRoles: user.roles, action: "notification.broadcast", entityType: "Notification", after: { audience: d.audience, count: users.length, channels: d.channels } });
-    return { count: users.length };
+    return { count: users.length, removed: 0 };
   });
 
 // ───────────── Settings, risk, automation ─────────────
