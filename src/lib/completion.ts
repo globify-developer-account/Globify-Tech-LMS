@@ -51,7 +51,9 @@ export function evaluateCompletion(rules: CompletionRules, s: CompletionSnapshot
   const lessonsMet = !rules.requireAllLessons || s.lessonsTotal === 0 || s.lessonsCompleted >= s.lessonsTotal;
   requirements.push({
     key: "lessons",
-    label: "Complete all lessons",
+    // Like attendance and quizzes: only promise "all lessons" when the course requires it,
+    // otherwise a student at 40% sees a ticked "Complete all lessons".
+    label: rules.requireAllLessons ? "Complete all lessons" : "Lessons",
     required: rules.requireAllLessons,
     met: lessonsMet,
     detail: `${s.lessonsCompleted} of ${s.lessonsTotal} lessons`,
