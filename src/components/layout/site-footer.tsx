@@ -1,6 +1,10 @@
+import Image from "next/image";
 import Link from "next/link";
 import { Logo } from "@/components/brand/logo";
 import { site } from "@/config/site";
+
+// Install referrer, so footer installs show up as their own campaign in Play Console.
+const PLAY_FOOTER_URL = `${site.apps.android}&referrer=${encodeURIComponent("utm_source=globifytech.com&utm_medium=website&utm_campaign=footer")}`;
 
 export interface FooterColumn {
   id: string;
@@ -26,6 +30,11 @@ export function SiteFooter({ columns, labels }: { columns: FooterColumn[]; label
             </a>
             <p className="text-caption text-fg-subtle">{site.contact.hours}</p>
           </div>
+          {/* Google's official badge, unmodified as its brand guidelines require; the artwork has its own padding, hence -ms-2.
+              unoptimized: a 5 KB static file, served as-is rather than through the image optimiser. */}
+          <a href={PLAY_FOOTER_URL} target="_blank" rel="noopener" className="-ms-2 w-fit rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+            <Image src="/badges/google-play-badge.png" alt="Get it on Google Play" width={646} height={250} unoptimized className="h-14 w-auto" />
+          </a>
         </div>
         <div className="grid grid-cols-2 gap-8 sm:grid-cols-3 md:col-span-8 md:grid-cols-4">
           {columns.map((col) => (

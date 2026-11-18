@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
+import { site } from "@/config/site";
 import { absoluteUrl } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
 // Play install referrer, so QR installs show up as a campaign in Play Console.
-const PLAY_STORE_URL = `https://play.google.com/store/apps/details?id=globifytech.com&referrer=${encodeURIComponent("utm_source=globifytech.com&utm_medium=qr&utm_campaign=app_download")}`;
+const PLAY_STORE_URL = `${site.apps.android}&referrer=${encodeURIComponent("utm_source=globifytech.com&utm_medium=qr&utm_campaign=app_download")}`;
 
 /**
  * GET /app — the "download the app" link behind printed QR codes. One stable

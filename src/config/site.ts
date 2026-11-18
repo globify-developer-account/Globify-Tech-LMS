@@ -26,6 +26,10 @@ export const site = {
     youtube: "https://youtube.com/@globifytech",
     tiktok: "https://tiktok.com/@globifytech",
   },
+  /** Store listings. The Android package name `globifytech.com` was fixed by the first Play upload. */
+  apps: {
+    android: "https://play.google.com/store/apps/details?id=globifytech.com",
+  },
   currency: "PKR",
   timezone: "Asia/Karachi",
 } as const;
