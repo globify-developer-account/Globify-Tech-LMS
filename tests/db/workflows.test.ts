@@ -1,8 +1,9 @@
 import { afterAll, describe, expect, it } from "vitest";
+import { booleanFulltextQuery } from "@/lib/fulltext";
 import { db, dbAvailable, disconnect, expectRejected, uniq } from "./setup-db";
 
 /**
- * End-to-end workflow checks against a real PostgreSQL, using the data the
+ * End-to-end workflow checks against a real MySQL or MariaDB, using the data the
  * seed script creates. These prove the schema, constraints and triggers behave
  * the way the application relies on, which unit tests with a mocked client
  * cannot show.
@@ -128,14 +129,14 @@ suite("audit log immutability", () => {
 
   it("rejects any update, even from the application role", async () => {
     await db().auditLog.create({ data: { action: "test.immutable", entityType: "Test", actorRoles: ["SUPER_ADMIN"] } });
-    await expectRejected(() => db().$executeRawUnsafe(`UPDATE "audit_logs" SET action = 'tampered' WHERE action = 'test.immutable'`));
+    await expectRejected(() => db().$executeRawUnsafe("UPDATE `audit_logs` SET action = 'tampered' WHERE action = 'test.immutable'"));
     const row = await db().auditLog.findFirst({ where: { action: "test.immutable" } });
     expect(row?.action).toBe("test.immutable");
   });
 
   it("rejects deletes so history cannot be erased", async () => {
     const before = await db().auditLog.count();
-    await expectRejected(() => db().$executeRawUnsafe(`DELETE FROM "audit_logs" WHERE action = 'test.immutable'`));
+    await expectRejected(() => db().$executeRawUnsafe("DELETE FROM `audit_logs` WHERE action = 'test.immutable'"));
     expect(await db().auditLog.count()).toBe(before);
   });
 });
@@ -146,28 +147,97 @@ suite("full-text search", () => {
   });
 
   it("indexes courses, lessons, posts, pages and discussions", async () => {
-    const rows = await db().$queryRawUnsafe<Array<{ table_name: string }>>(
-      `SELECT table_name FROM information_schema.columns WHERE column_name = 'search_vector' ORDER BY table_name`,
+    const rows = await db().$queryRawUnsafe<Array<{ t: string }>>(
+      "SELECT DISTINCT table_name AS t FROM information_schema.statistics WHERE table_schema = DATABASE() AND index_type = 'FULLTEXT' ORDER BY t",
     );
-    expect(rows.map((r) => r.table_name)).toEqual(["blog_posts", "courses", "discussions", "lessons", "pages"]);
+    expect(rows.map((r) => r.t)).toEqual(["blog_posts", "courses", "discussions", "lessons", "pages"]);
   });
 
+  const COURSE_MATCH = "MATCH(`title`, `subtitle`, `shortDescription`, `description`) AGAINST (? IN BOOLEAN MODE)";
+
   it("finds a course by words from its description, not just its title", async () => {
-    const rows = await db().$queryRawUnsafe<Array<{ title: string }>>(
-      `SELECT title FROM "courses" WHERE search_vector @@ websearch_to_tsquery('english', $1) LIMIT 5`,
-      "marketing funnel",
-    );
+    const rows = await db().$queryRawUnsafe<Array<{ title: string }>>(`SELECT title FROM courses WHERE ${COURSE_MATCH} LIMIT 5`, booleanFulltextQuery("marketing funnel"));
     expect(rows.length).toBeGreaterThan(0);
   });
 
   it("ranks a better match first", async () => {
-    const rows = await db().$queryRawUnsafe<Array<{ title: string; rank: number }>>(
-      `SELECT title, ts_rank(search_vector, websearch_to_tsquery('english', $1)) AS rank
-       FROM "courses" WHERE search_vector @@ websearch_to_tsquery('english', $1)
-       ORDER BY rank DESC LIMIT 5`,
-      "freelance client",
+    const q = booleanFulltextQuery("freelance client");
+    const rows = await db().$queryRawUnsafe<Array<{ title: string; score: number }>>(
+      `SELECT title, ${COURSE_MATCH} AS score FROM courses WHERE ${COURSE_MATCH} ORDER BY score DESC LIMIT 5`,
+      q,
+      q,
     );
     expect(rows.length).toBeGreaterThan(0);
-    for (let i = 1; i < rows.length; i++) expect(Number(rows[i - 1]!.rank)).toBeGreaterThanOrEqual(Number(rows[i]!.rank));
+    for (let i = 1; i < rows.length; i++) expect(Number(rows[i - 1]!.score)).toBeGreaterThanOrEqual(Number(rows[i]!.score));
+  });
+});
+
+/**
+ * MySQL has no array columns, so lists are JSON. MariaDB stores JSON as text,
+ * and Prisma's JSON filters differ by database, so these prove the queries the
+ * application runs actually work on this server.
+ */
+suite("JSON columns", () => {
+  afterAll(async () => {
+    await disconnect();
+  });
+
+  it("returns list fields as arrays and defaults them to empty", async () => {
+    const course = await db().course.create({ data: { slug: uniq("json-course"), title: "JSON defaults", price: 0, currency: "PKR", isTestData: true } });
+    expect(course.outcomes).toEqual([]);
+    const seeded = await db().course.findFirstOrThrow({ where: { isTestData: true, NOT: { id: course.id } } });
+    expect(Array.isArray(seeded.outcomes)).toBe(true);
+    await db().course.delete({ where: { id: course.id } });
+  });
+
+  it("finds an instructor by one entry of their expertise list", async () => {
+    const instructors = await db().instructorProfile.findMany({ select: { id: true, expertise: true } });
+    const instructor = instructors.find((i) => i.expertise.length > 0)!;
+    expect(instructor, "the seed gives instructors an expertise list").toBeDefined();
+    const skill = instructor.expertise[0]!;
+    const found = await db().instructorProfile.findMany({ where: { expertise: { array_contains: skill } }, select: { id: true } });
+    expect(found.map((f) => f.id)).toContain(instructor.id);
+    // Every hit really has the skill, and a skill nobody has finds nobody.
+    const expected = instructors.filter((i) => i.expertise.includes(skill)).map((i) => i.id).sort();
+    expect(found.map((f) => f.id).sort()).toEqual(expected);
+    expect(await db().instructorProfile.count({ where: { expertise: { array_contains: uniq("no-such-skill") } } })).toBe(0);
+  });
+
+  it("matches a notification by a value inside its data", async () => {
+    const user = await db().user.findFirstOrThrow();
+    const key = uniq("hermes");
+    const n = await db().notification.create({ data: { userId: user.id, event: "SYSTEM", title: "JSON filter test", body: "-", data: { hermesKey: key } } });
+    expect(await db().notification.findFirst({ where: { userId: user.id, data: { path: "$.hermesKey", equals: key } }, select: { id: true } })).toEqual({ id: n.id });
+    expect(await db().notification.findFirst({ where: { userId: user.id, data: { path: "$.hermesKey", equals: `${key}-other` } } })).toBeNull();
+    await db().notification.delete({ where: { id: n.id } });
+  });
+
+  it("searches applications by a name inside the personal details", async () => {
+    const application = await db().application.findFirstOrThrow({ select: { id: true, personal: true } });
+    const firstName = (application.personal as { firstName?: string }).firstName ?? "";
+    expect(firstName.length).toBeGreaterThan(2);
+    const found = await db().application.findMany({ where: { personal: { path: "$.firstName", string_contains: firstName.slice(0, 3) } }, select: { id: true } });
+    expect(found.map((f) => f.id)).toContain(application.id);
+    expect(await db().application.count({ where: { personal: { path: "$.firstName", string_contains: uniq("nobody") } } })).toBe(0);
+  });
+});
+
+suite("emoji reactions", () => {
+  afterAll(async () => {
+    await disconnect();
+  });
+
+  it("treats two different emoji as two different reactions", async () => {
+    const user = await db().user.findFirstOrThrow({ select: { id: true } });
+    const discussion = await db().discussion.create({ data: { authorId: user.id, title: uniq("Emoji test"), body: "Reactions with different emoji must not collide." } });
+    const base = { userId: user.id, discussionId: discussion.id };
+    const first = await db().reaction.create({ data: base }); // no emoji given: the default
+    expect(first.emoji).toBe("👍");
+    await db().reaction.create({ data: { ...base, emoji: "🎉" } });
+    await db().reaction.create({ data: { ...base, emoji: "🚀" } });
+    expect(await db().reaction.count({ where: base })).toBe(3);
+    expect(await db().reaction.count({ where: { ...base, emoji: "🎉" } })).toBe(1);
+    await db().discussion.delete({ where: { id: discussion.id } }); // cascades to its reactions
+    expect(await db().reaction.count({ where: base })).toBe(0);
   });
 });

@@ -5,7 +5,7 @@
 #   ./scripts/backup-db.sh                       # dump to ./backups
 #   BACKUP_DIR=/srv/backups ./scripts/backup-db.sh
 #
-# Takes a compressed custom-format dump, prunes old ones, optionally uploads to
+# Takes a gzipped mysqldump (schema, data and triggers), prunes old ones, optionally uploads to
 # S3, and pings the application so /admin/automation can show that backups are
 # actually running. Run it from cron:
 #
@@ -15,7 +15,7 @@ set -euo pipefail
 BACKUP_DIR="${BACKUP_DIR:-./backups}"
 RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-14}"
 STAMP="$(date +%Y%m%d-%H%M%S)"
-FILE="${BACKUP_DIR}/globify-${STAMP}.dump"
+FILE="${BACKUP_DIR}/globify-${STAMP}.sql.gz"
 
 if [[ -z "${DATABASE_URL:-}" ]]; then
   if [[ -f .env ]]; then
@@ -23,12 +23,15 @@ if [[ -z "${DATABASE_URL:-}" ]]; then
     export $(grep -E '^DATABASE_URL=' .env | xargs -d '\n')
   fi
 fi
-: "${DATABASE_URL:?DATABASE_URL must be set}"
+# shellcheck source=scripts/mysql-client-config.sh
+source "$(dirname "$0")/mysql-client-config.sh"
 
 mkdir -p "$BACKUP_DIR"
 
 echo "[backup] dumping to ${FILE}"
-pg_dump --dbname="$DATABASE_URL" --format=custom --compress=9 --no-owner --no-privileges --file="$FILE"
+# --single-transaction gives a consistent snapshot without locking tables;
+# --no-tablespaces avoids needing the PROCESS privilege, which shared hosts withhold.
+mysqldump --defaults-extra-file="$MYSQL_CNF" --single-transaction --quick --triggers --routines --no-tablespaces "$DB_NAME" | gzip -9 > "$FILE"
 
 SIZE="$(du -h "$FILE" | cut -f1)"
 echo "[backup] wrote ${SIZE}"
@@ -47,7 +50,7 @@ if [[ -n "${BACKUP_BUCKET:-}" ]]; then
 fi
 
 echo "[backup] pruning dumps older than ${RETENTION_DAYS} days"
-find "$BACKUP_DIR" -name 'globify-*.dump' -type f -mtime "+${RETENTION_DAYS}" -delete
+find "$BACKUP_DIR" -name 'globify-*.sql.gz' -type f -mtime "+${RETENTION_DAYS}" -delete
 
 # Tell the application the backup succeeded, so a missing heartbeat is visible.
 if [[ -n "${BACKUP_HEARTBEAT_SECRET:-}" && -n "${APP_URL:-${NEXT_PUBLIC_APP_URL:-}}" ]]; then

@@ -277,7 +277,7 @@ export async function handlePaymentWebhook(provider: ProviderKey, result: Webhoo
 export async function listInvoices(filters: { q?: string; status?: InvoiceStatus; studentId?: string; page?: number; pageSize?: number }) {
   const page = filters.page ?? 1;
   const pageSize = filters.pageSize ?? 20;
-  const where: Prisma.InvoiceWhereInput = { deletedAt: null, ...(filters.status ? { status: filters.status } : {}), ...(filters.studentId ? { studentId: filters.studentId } : {}), ...(filters.q ? { OR: [{ number: { contains: filters.q, mode: "insensitive" } }, { student: { user: { name: { contains: filters.q, mode: "insensitive" } } } }] } : {}) };
+  const where: Prisma.InvoiceWhereInput = { deletedAt: null, ...(filters.status ? { status: filters.status } : {}), ...(filters.studentId ? { studentId: filters.studentId } : {}), ...(filters.q ? { OR: [{ number: { contains: filters.q } }, { student: { user: { name: { contains: filters.q } } } }] } : {}) };
   const [items, total, sums] = await Promise.all([
     prisma.invoice.findMany({ where, orderBy: { createdAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize, include: { student: { select: { id: true, studentNumber: true, user: { select: { name: true, email: true } } } }, enrollment: { select: { course: { select: { title: true } } } } } }),
     prisma.invoice.count({ where }),
@@ -309,7 +309,7 @@ export async function runPaymentReminders() {
   await prisma.invoice.updateMany({ where: { deletedAt: null, status: { in: ["ISSUED", "PARTIALLY_PAID"] }, dueDate: { lt: new Date() } }, data: { status: "OVERDUE" } });
   const soon = await prisma.invoice.findMany({ where: { deletedAt: null, status: { in: ["ISSUED", "PARTIALLY_PAID", "OVERDUE"] }, dueDate: { lte: new Date(Date.now() + remindDays * 86400000) } }, include: { student: { select: { userId: true } } } });
   for (const inv of soon) {
-    const recent = await prisma.notification.findFirst({ where: { userId: inv.student.userId, event: "PAYMENT_DUE", createdAt: { gte: new Date(Date.now() - 3 * 86400000) }, data: { path: ["number"], equals: inv.number } } });
+    const recent = await prisma.notification.findFirst({ where: { userId: inv.student.userId, event: "PAYMENT_DUE", createdAt: { gte: new Date(Date.now() - 3 * 86400000) }, data: { path: "$.number", equals: inv.number } } });
     if (recent) continue;
     const remaining = toNumber(inv.total) - toNumber(inv.amountPaid);
     await notify({ userId: inv.student.userId, event: "PAYMENT_DUE", data: { number: inv.number, amount: formatMoney(remaining, inv.currency), due: inv.dueDate?.toLocaleDateString("en-GB") ?? "" }, href: `/student/payments/${inv.id}`, fallback: { title: inv.status === "OVERDUE" ? `Invoice ${inv.number} is overdue` : `Reminder: ${formatMoney(remaining, inv.currency)} due soon`, body: `Invoice ${inv.number} is due ${inv.dueDate?.toLocaleDateString("en-GB")}.` } });

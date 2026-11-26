@@ -71,7 +71,7 @@ export async function deactivateInstructor(id: string) {
 export async function listInstructors(filters: { q?: string; campusId?: string; page?: number; pageSize?: number }) {
   const page = filters.page ?? 1;
   const pageSize = filters.pageSize ?? 20;
-  const where: Prisma.InstructorProfileWhereInput = { ...(filters.campusId ? { campusId: filters.campusId } : {}), ...(filters.q ? { OR: [{ user: { name: { contains: filters.q, mode: "insensitive" } } }, { user: { email: { contains: filters.q, mode: "insensitive" } } }, { expertise: { has: filters.q } }] } : {}) };
+  const where: Prisma.InstructorProfileWhereInput = { ...(filters.campusId ? { campusId: filters.campusId } : {}), ...(filters.q ? { OR: [{ user: { name: { contains: filters.q } } }, { user: { email: { contains: filters.q } } }, { expertise: { array_contains: filters.q } }] } : {}) };
   const [items, total] = await Promise.all([
     prisma.instructorProfile.findMany({ where, orderBy: [{ isFeatured: "desc" }, { createdAt: "asc" }], skip: (page - 1) * pageSize, take: pageSize, include: { user: { select: { name: true, email: true, status: true, avatar: { select: { url: true } } } }, campus: { select: { name: true } }, _count: { select: { courses: true, batches: true } } } }),
     prisma.instructorProfile.count({ where }),

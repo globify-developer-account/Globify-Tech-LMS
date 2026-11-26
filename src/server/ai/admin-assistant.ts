@@ -23,7 +23,7 @@ function buildTools(user: SessionUser) {
   if (has("analytics.read")) {
     tools.overview = tool({ description: "Key institute metrics: students, enrollments, revenue this month, leads, at-risk count, pending applications, outstanding fees.", inputSchema: z.object({}), execute: async () => (await adminOverview()).kpis });
     tools.enrollmentsInPeriod = tool({ description: "Count enrollments created in the last N days, optionally by course.", inputSchema: z.object({ days: z.number().int().min(1).max(365).default(30), courseTitle: z.string().optional() }), execute: async ({ days, courseTitle }) => {
-      const rows = await prisma.enrollment.groupBy({ by: ["courseId"], where: { createdAt: { gte: since(days) }, ...(courseTitle ? { course: { title: { contains: courseTitle, mode: "insensitive" } } } : {}) }, _count: { _all: true } });
+      const rows = await prisma.enrollment.groupBy({ by: ["courseId"], where: { createdAt: { gte: since(days) }, ...(courseTitle ? { course: { title: { contains: courseTitle } } } : {}) }, _count: { _all: true } });
       const courses = await prisma.course.findMany({ where: { id: { in: rows.map((r) => r.courseId) } }, select: { id: true, title: true } });
       return rows.map((r) => ({ course: courses.find((c) => c.id === r.courseId)?.title, enrollments: r._count._all })).sort((a, b) => b.enrollments - a.enrollments);
     } });

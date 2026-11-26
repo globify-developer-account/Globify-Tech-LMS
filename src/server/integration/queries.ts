@@ -81,10 +81,10 @@ export function phoneKey(input: string): string | null {
 
 async function studentIdsByPhone(key: string): Promise<string[]> {
   const rows = await prisma.$queryRaw<Array<{ id: string }>>`
-    select s.id::text as id
-    from students s join users u on u.id = s."userId"
-    where right(regexp_replace(coalesce(u.phone, ''), '[^0-9]', '', 'g'), 10) = ${key}
-       or right(regexp_replace(coalesce(u.whatsapp, ''), '[^0-9]', '', 'g'), 10) = ${key}`;
+    select s.id as id
+    from students s join users u on u.id = s.userId
+    where right(regexp_replace(coalesce(u.phone, ''), '[^0-9]', ''), 10) = ${key}
+       or right(regexp_replace(coalesce(u.whatsapp, ''), '[^0-9]', ''), 10) = ${key}`;
   return rows.map((r) => r.id);
 }
 
@@ -94,7 +94,7 @@ export async function listStudents(q: z.infer<typeof studentListQuery>, scope: T
   if (q.courseId) and.push({ enrollments: { some: { courseId: q.courseId } } });
   if (q.batchId) and.push({ batches: { some: { batchId: q.batchId, leftAt: null } } });
   if (q.q) {
-    const contains = { contains: q.q, mode: "insensitive" as const };
+    const contains = { contains: q.q };
     and.push({ OR: [{ studentNumber: contains }, { user: { name: contains } }, { user: { email: contains } }] });
   }
   if (q.phone) {
@@ -165,7 +165,7 @@ export async function listCourses(q: z.infer<typeof courseListQuery>, canReadDra
   const where: Prisma.CourseWhereInput = {
     deletedAt: null,
     ...(status ? { status } : {}),
-    ...(q.q ? { OR: [{ title: { contains: q.q, mode: "insensitive" } }, { slug: { contains: q.q.toLowerCase() } }] } : {}),
+    ...(q.q ? { OR: [{ title: { contains: q.q } }, { slug: { contains: q.q.toLowerCase() } }] } : {}),
   };
   const [rows, total] = await Promise.all([
     prisma.course.findMany({
@@ -331,7 +331,7 @@ export const admissionsQuery = z.object({
   limit,
 });
 
-function applicantName(personal: Prisma.JsonValue): string | null {
+function applicantName(personal: unknown): string | null {
   if (!personal || typeof personal !== "object" || Array.isArray(personal)) return null;
   const p = personal as Record<string, unknown>;
   const name = [p.firstName, p.lastName].filter((v): v is string => typeof v === "string" && v.trim() !== "").join(" ").trim();
@@ -444,7 +444,7 @@ export async function notifyStudentFromHermes(studentId: string, idempotencyKey:
   await assertStudentVisible(id, scope);
   const profile = await prisma.studentProfile.findUniqueOrThrow({ where: { id }, select: { userId: true } });
 
-  const prior = await prisma.notification.findFirst({ where: { userId: profile.userId, channel: "IN_APP", data: { path: ["hermesKey"], equals: idempotencyKey } }, select: { id: true } });
+  const prior = await prisma.notification.findFirst({ where: { userId: profile.userId, channel: "IN_APP", data: { path: "$.hermesKey", equals: idempotencyKey } }, select: { id: true } });
   if (prior) return { data: { notificationId: prior.id, channel: "IN_APP", status: "SENT", replayed: true } };
 
   const row = await prisma.notification.create({

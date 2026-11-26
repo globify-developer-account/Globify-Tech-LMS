@@ -127,7 +127,7 @@ export async function listEnrollments(filters: EnrollmentListFilters) {
     ...(filters.courseId ? { courseId: filters.courseId } : {}),
     ...(filters.batchId ? { batchId: filters.batchId } : {}),
     ...(filters.status ? { status: filters.status } : {}),
-    ...(filters.q ? { student: { user: { OR: [{ name: { contains: filters.q, mode: "insensitive" } }, { email: { contains: filters.q, mode: "insensitive" } }] } } } : {}),
+    ...(filters.q ? { student: { user: { OR: [{ name: { contains: filters.q } }, { email: { contains: filters.q } }] } } } : {}),
   };
   const [items, total] = await Promise.all([
     prisma.enrollment.findMany({

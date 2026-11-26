@@ -5,8 +5,8 @@
 # the build tooling does not have.
 #
 # It runs migrations, the seed, typecheck, lint, the full test suite and a
-# production build against a real PostgreSQL, which is the same set of checks
-# used while building this project.
+# production build against a real MariaDB 11.8 (the version Hostinger runs),
+# which is the same set of checks used while building this project.
 
 name: CI
 
@@ -19,22 +19,23 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     services:
-      postgres:
-        image: postgres:17-alpine
+      mariadb:
+        image: mariadb:11.8
         env:
-          POSTGRES_USER: globify
-          POSTGRES_PASSWORD: globify
-          POSTGRES_DB: globify_test
+          MARIADB_USER: globify
+          MARIADB_PASSWORD: globify
+          MARIADB_DATABASE: globify_test
+          MARIADB_ROOT_PASSWORD: globify-root
         options: >-
-          --health-cmd "pg_isready -U globify"
+          --health-cmd "healthcheck.sh --connect --innodb_initialized"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
         ports:
-          - 5432:5432
+          - 3306:3306
     env:
-      DATABASE_URL: postgresql://globify:globify@localhost:5432/globify_test
-      TEST_DATABASE_URL: postgresql://globify:globify@localhost:5432/globify_test
+      DATABASE_URL: mysql://globify:globify@127.0.0.1:3306/globify_test
+      TEST_DATABASE_URL: mysql://globify:globify@127.0.0.1:3306/globify_test
       AUTH_SECRET: ci-secret-ci-secret-ci-secret-ci
       NEXT_PUBLIC_APP_URL: http://localhost:3000
     steps:

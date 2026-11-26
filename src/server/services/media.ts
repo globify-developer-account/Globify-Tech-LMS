@@ -128,7 +128,7 @@ export async function listMedia(params: { q?: string; kind?: MediaKind; folderId
     deletedAt: null,
     ...(params.kind ? { kind: params.kind } : {}),
     ...(params.folderId !== undefined ? { folderId: params.folderId } : {}),
-    ...(params.q ? { OR: [{ fileName: { contains: params.q, mode: "insensitive" as const } }, { alt: { contains: params.q, mode: "insensitive" as const } }, { tags: { has: params.q } }] } : {}),
+    ...(params.q ? { OR: [{ fileName: { contains: params.q } }, { alt: { contains: params.q } }, { tags: { array_contains: params.q } }] } : {}),
   };
   const [items, total] = await Promise.all([
     prisma.media.findMany({ where, orderBy: { createdAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize, include: { folder: true, uploadedBy: { select: { name: true } } } }),

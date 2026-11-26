@@ -11,7 +11,7 @@ export default defineConfig({
     env: {
       NODE_ENV: "test",
       AUTH_SECRET: "test-secret-test-secret-test-secret",
-      DATABASE_URL: "postgresql://test:test@localhost:5432/test",
+      DATABASE_URL: "mysql://test:test@localhost:3306/test",
       NEXT_PUBLIC_APP_URL: "http://localhost:3000",
     },
   },

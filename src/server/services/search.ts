@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma, Prisma } from "@/server/db/prisma";
 import { can, type Permission } from "@/lib/rbac";
+import { booleanFulltextQuery } from "@/lib/fulltext";
 import type { SessionUser } from "@/server/auth/session";
 
 export interface SearchHit {
@@ -15,24 +16,37 @@ export interface SearchProvider {
   search(query: string, user: SessionUser, limit?: number): Promise<SearchHit[]>;
 }
 
-/** Tables carrying a generated `search_vector` column (see the search migration). */
-type FtsTable = "courses" | "lessons" | "blog_posts" | "pages" | "discussions";
+/**
+ * Tables with a FULLTEXT index, and its exact column list. MATCH() must name
+ * the same columns as the index, so keep this in step with the `@@fulltext`
+ * attributes in prisma/schema.prisma.
+ */
+const FTS_COLUMNS = {
+  courses: ["title", "subtitle", "shortDescription", "description"],
+  lessons: ["title", "content"],
+  blog_posts: ["title", "excerpt", "content"],
+  pages: ["title", "seoDescription"],
+  discussions: ["title", "body"],
+} as const;
+type FtsTable = keyof typeof FTS_COLUMNS;
 
 /**
  * Ranked full-text matches for one table, best first.
  *
- * Uses the generated tsvector columns so multi-word queries match titles and
- * body text with proper stemming. Returns an empty list when the query has no
- * usable terms or the column is missing (for example on a database where the
- * search migration has not run yet), and the caller falls back to ILIKE.
+ * Uses the FULLTEXT indexes so multi-word queries match titles and body text,
+ * not just one column. Returns an empty list when the query has no usable
+ * words or the index is missing, and the caller falls back to `contains`.
  */
 async function ftsIds(table: FtsTable, query: string, limit: number): Promise<string[]> {
+  const against = booleanFulltextQuery(query);
+  if (!against) return [];
+  const columns = Prisma.raw(FTS_COLUMNS[table].map((c) => `\`${c}\``).join(", "));
   try {
     const rows = await prisma.$queryRaw<Array<{ id: string }>>`
       SELECT id
-      FROM ${Prisma.raw(`"${table}"`)}
-      WHERE search_vector @@ websearch_to_tsquery('english', ${query})
-      ORDER BY ts_rank(search_vector, websearch_to_tsquery('english', ${query})) DESC
+      FROM ${Prisma.raw(`\`${table}\``)}
+      WHERE MATCH(${columns}) AGAINST (${against} IN BOOLEAN MODE)
+      ORDER BY MATCH(${columns}) AGAINST (${against} IN BOOLEAN MODE) DESC
       LIMIT ${limit}
     `;
     return rows.map((r) => r.id);
@@ -41,7 +55,7 @@ async function ftsIds(table: FtsTable, query: string, limit: number): Promise<st
   }
 }
 
-/** Keeps full-text hits in rank order, then appends anything ILIKE also found. */
+/** Keeps full-text hits in rank order, then appends anything `contains` also found. */
 function byRank<T extends { id: string }>(rows: T[], ranked: string[]): T[] {
   if (!ranked.length) return rows;
   const order = new Map(ranked.map((id, i) => [id, i]));
@@ -49,16 +63,16 @@ function byRank<T extends { id: string }>(rows: T[], ranked: string[]): T[] {
 }
 
 /**
- * PostgreSQL search provider. Combines the generated full-text vectors with
- * ILIKE matching for partial words, and applies the caller's permissions so
+ * Database search provider. Combines the FULLTEXT indexes with
+ * `contains` matching for partial words, and applies the caller's permissions so
  * results never leak across roles.
  * Swap for an OpenSearch provider by implementing `SearchProvider`.
  */
-class PostgresSearchProvider implements SearchProvider {
+class DatabaseSearchProvider implements SearchProvider {
   async search(query: string, user: SessionUser, limit = 8): Promise<SearchHit[]> {
     const q = query.trim();
     if (q.length < 2) return [];
-    const like = { contains: q, mode: "insensitive" as const };
+    const like = { contains: q };
     const tasks: Array<Promise<SearchHit[]>> = [];
     const allowed = (p: Permission) => can(user, p);
     const isStudent = user.roles.includes("STUDENT") || user.roles.includes("ALUMNI");
@@ -173,6 +187,6 @@ class PostgresSearchProvider implements SearchProvider {
 
 let provider: SearchProvider | undefined;
 export function searchProvider(): SearchProvider {
-  provider ??= new PostgresSearchProvider();
+  provider ??= new DatabaseSearchProvider();
   return provider;
 }

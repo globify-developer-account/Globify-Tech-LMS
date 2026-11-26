@@ -10,7 +10,9 @@ const schema = z.object({
   NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
   AUTH_URL: z.string().url().optional(),
   AUTH_SECRET: z.string().min(16, "AUTH_SECRET must be at least 16 characters"),
-  DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
+  // The Prisma client is built for MySQL / MariaDB. A leftover postgresql:// URL
+  // can never work, so say so here instead of failing on every query.
+  DATABASE_URL: z.string().min(1, "DATABASE_URL is required").startsWith("mysql://", "DATABASE_URL must be a mysql:// connection string; the database moved from PostgreSQL to MySQL"),
   REDIS_URL: z.string().optional().transform((v) => (v ? v : undefined)),
 
   STORAGE_DRIVER: z.enum(["local", "s3"]).default("local"),

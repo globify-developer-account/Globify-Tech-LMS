@@ -1,6 +1,6 @@
 # Globify Tech
 
-An AI-powered education operating system for a real institute: a public marketing site, a student learning platform, an instructor studio, an admin command centre and an employer portal, all backed by one PostgreSQL database.
+An AI-powered education operating system for a real institute: a public marketing site, a student learning platform, an instructor studio, an admin command centre and an employer portal, all backed by one MySQL database (MariaDB on Hostinger).
 
 Built for Globify Tech in Faisalabad, where batches are capped at eighteen students and every course ends with work a graduate can show an employer.
 
@@ -23,37 +23,23 @@ Every page is database-driven. There is no hard-coded marketing copy: the home p
 
 ## Getting started
 
-You need Node 24 and pnpm 11. PostgreSQL is recommended but not required to start.
+You need Node 24, pnpm 10 and a MySQL 8+ or MariaDB 10.11+ database.
 
 ```bash
 pnpm install
 cp .env.example .env          # fill in AUTH_SECRET at minimum
 ```
 
-### With PostgreSQL
+### With a MySQL database
 
 ```bash
-# point DATABASE_URL at your server, then:
+# point DATABASE_URL at your server (mysql://…), then:
 pnpm db:deploy                # apply migrations
 pnpm db:seed                  # demo institute: courses, students, invoices…
 pnpm dev
 ```
 
-### Without PostgreSQL or Docker
-
-The project ships an embedded PostgreSQL (PGlite compiled to WebAssembly) so it runs on a laptop with nothing installed:
-
-```bash
-pnpm db:dev                   # starts PostgreSQL on 127.0.0.1:5433
-```
-
-Then, in a second terminal, point the app at it:
-
-```
-DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5433/postgres?pgbouncer=true&connection_limit=1"
-```
-
-The `pgbouncer=true` flag matters: the embedded server keeps a single session, so Prisma must not reuse prepared statement names. Use a real PostgreSQL in production.
+There is no embedded database. For a local one, run `docker compose up -d mariadb` and use `mysql://globify:globify@localhost:3306/globify`. Without Docker, point `DATABASE_URL` at a hosted database instead. On Hostinger, either allow your IP under hPanel → Databases → Remote MySQL, or open an SSH tunnel (`ssh -p 65002 -N -L 3307:127.0.0.1:3306 <user>@<server-ip>`) and use `127.0.0.1:3307`.
 
 ### With Docker
 
@@ -63,7 +49,7 @@ docker compose exec app pnpm db:deploy
 docker compose exec app pnpm db:seed
 ```
 
-That brings up PostgreSQL, Redis, the application and a background worker.
+That brings up MariaDB, Redis, the application and a background worker.
 
 ### Demo logins
 
@@ -95,8 +81,8 @@ Everything the seed creates is flagged `isTestData`, so you can tell demo record
 | `pnpm lint` | ESLint across the repository |
 | `pnpm test` | Unit tests |
 | `pnpm test:db` | Integration tests (needs `TEST_DATABASE_URL`) |
-| `pnpm db:dev` | Embedded PostgreSQL for local work |
 | `pnpm db:deploy` | Apply migrations |
+| `pnpm db:diff` | SQL that brings the database in `DATABASE_URL` up to `schema.prisma` (to start a new migration) |
 | `pnpm db:seed` | Seed the demo institute |
 | `pnpm db:studio` | Prisma Studio |
 | `pnpm worker` | Background job worker |
@@ -106,7 +92,7 @@ Everything the seed creates is flagged `isTestData`, so you can tell demo record
 ## How it fits together
 
 - **Next.js App Router** with React server components. Data is loaded on the server; client components are used only where there is interaction.
-- **PostgreSQL via Prisma**, around 110 models. Full-text search uses generated `tsvector` columns, so search needs no extra service.
+- **MySQL / MariaDB via Prisma**, around 130 models. Full-text search uses InnoDB `FULLTEXT` indexes, so search needs no extra service.
 - **Auth.js v5** with JWT sessions carrying roles. `src/proxy.ts` gates each surface at the edge; every mutation re-checks permissions on the server.
 - **Fifteen roles and about sixty permissions** in `src/lib/rbac`. The matrix is the single source of truth for navigation, page guards and the AI assistant's tools.
 - **Providers behind interfaces** for email, WhatsApp, SMS, storage, payments, live classes and AI. Each has a console or local driver, so the app runs fully without a single third-party key.
@@ -136,7 +122,7 @@ pnpm test                     # 122 unit tests
 TEST_DATABASE_URL="…" pnpm test:db
 ```
 
-Unit tests cover the permission matrix, the completion engine, risk scoring, quiz grading, job matching and every validation schema. Integration tests run against a real PostgreSQL and prove unique constraints, cascade deletes, invoice and payment consistency, append-only audit logs and full-text search.
+Unit tests cover the permission matrix, the completion engine, risk scoring, quiz grading, job matching and every validation schema. Integration tests run against a real MySQL or MariaDB and prove unique constraints, cascade deletes, invoice and payment consistency, append-only audit logs and full-text search.
 
 ---
 
@@ -144,7 +130,7 @@ Unit tests cover the permission matrix, the completion engine, risk scoring, qui
 
 See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for the full runbook. In short:
 
-1. Provision PostgreSQL and Redis.
+1. Provision MySQL (or MariaDB) and Redis.
 2. Set the environment variables from `.env.example`.
 3. `pnpm db:deploy` on release.
 4. Run the app and at least one worker.
@@ -155,7 +141,7 @@ See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for the full runbook. In short:
 
 ## Continuous integration
 
-A ready workflow lives at [`docs/ci/github-actions-ci.yml`](docs/ci/github-actions-ci.yml). Copy it to `.github/workflows/ci.yml` to enable it: it runs migrations, the seed, typecheck, lint, the tests and a production build against a real PostgreSQL.
+A ready workflow lives at [`docs/ci/github-actions-ci.yml`](docs/ci/github-actions-ci.yml). Copy it to `.github/workflows/ci.yml` to enable it: it runs migrations, the seed, typecheck, lint, the tests and a production build against MariaDB 11.8.
 
 ---
 

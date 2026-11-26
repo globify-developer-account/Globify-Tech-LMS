@@ -21,7 +21,7 @@ export default async function AuditLogsPage({ searchParams }: { searchParams: Pr
   const where: Prisma.AuditLogWhereInput = {
     ...(sp.entity ? { entityType: sp.entity } : {}),
     ...(sp.actor ? { actorId: sp.actor } : {}),
-    ...(sp.q ? { OR: [{ action: { contains: sp.q, mode: "insensitive" } }, { entityId: { contains: sp.q, mode: "insensitive" } }, { actor: { name: { contains: sp.q, mode: "insensitive" } } }, { actor: { email: { contains: sp.q, mode: "insensitive" } } }] } : {}),
+    ...(sp.q ? { OR: [{ action: { contains: sp.q } }, { entityId: { contains: sp.q } }, { actor: { name: { contains: sp.q } } }, { actor: { email: { contains: sp.q } } }] } : {}),
   };
   const [rows, total, entities] = await Promise.all([
     prisma.auditLog.findMany({ where, orderBy: { createdAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize, include: { actor: { select: { id: true, name: true, email: true } } } }),

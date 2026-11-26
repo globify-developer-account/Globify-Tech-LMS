@@ -10,7 +10,7 @@
 | UI primitives | Radix UI (via `radix-ui`), shadcn-style components in `src/components/ui` | Accessible by default |
 | Motion | `motion` (Framer Motion) | Fast, subtle, purposeful transitions |
 | 3D | React Three Fiber + drei (homepage hero only, lazy-loaded) | Used where it earns its place |
-| Database | PostgreSQL 15+ | Relational, full-text search, mature |
+| Database | MySQL 8+ / MariaDB 10.11+ (MariaDB 11.8 on Hostinger) | Relational, full-text search, included with the hosting plan |
 | ORM | Prisma 6 | Typed schema, migrations, seed |
 | Auth | Auth.js v5 (credentials + OAuth-ready), JWT sessions | Works in Server Components, Server Actions, Route Handlers and edge proxy |
 | Validation | Zod (shared schemas in `src/lib/validation`) | Same schema on client form and server action |
@@ -18,7 +18,7 @@
 | Charts | Recharts (restrained set: line, area, bar, funnel, progress) | |
 | Storage | S3-compatible (`@aws-sdk/client-s3`), local disk driver for dev | Provider abstraction |
 | Cache/queue | Redis + BullMQ, with in-process fallback when `REDIS_URL` is unset | Background jobs never block requests |
-| Search | PostgreSQL full-text (`tsvector`) behind `SearchProvider` | OpenSearch drop-in later |
+| Search | InnoDB `FULLTEXT` indexes behind `SearchProvider` | OpenSearch drop-in later |
 | AI | Vercel AI SDK with OpenAI / Anthropic / Google adapters behind `src/server/ai/provider.ts` | Never hard-coded to one vendor |
 | Email | Nodemailer SMTP / Resend HTTP / console driver | Provider abstraction |
 | WhatsApp | Meta Cloud API driver, console driver | Tokens server-only |
@@ -103,7 +103,7 @@ See `src/lib/rbac/permissions.ts`. Roles map to permission sets; users can hold 
 
 ## 6. Application architecture (per surface)
 
-- **Public**: RSC pages fetch CMS content from Postgres, cached per route with tag-based revalidation (`revalidateTag("page:home")`). Page sections are rendered from `PageSection.type` via a section registry.
+- **Public**: RSC pages fetch CMS content from the database, cached per route with tag-based revalidation (`revalidateTag("page:home")`). Page sections are rendered from `PageSection.type` via a section registry.
 - **Student**: mobile-first shell; dashboard aggregates via one service call `getStudentCockpit(userId)`; course player uses client components for video and notes with server actions for progress.
 - **Instructor**: desktop/tablet shell; course builder edits drafts; publishing is gated by `courses.publish`.
 - **Admin**: desktop-first shell with sidebar, command palette (⌘K) and data tables with server-side pagination.

@@ -1,12 +1,18 @@
-// Globify Tech — PostgreSQL schema
+// Globify Tech — MySQL / MariaDB schema
 // See docs/DATABASE.md for the domain map and conventions.
 
 generator client {
   provider = "prisma-client-js"
 }
 
+// Types the JSON columns that hold lists (MySQL has no array columns).
+// The named types live in src/types/prisma-json.d.ts.
+generator json {
+  provider = "prisma-json-types-generator"
+}
+
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -410,16 +416,16 @@ enum ExamKind {
 // ─────────────────────────────────────────────────────────────
 
 model User {
-  id              String     @id @default(uuid()) @db.Uuid
+  id              String     @id @default(uuid()) @db.Char(36)
   email           String     @unique
   emailVerifiedAt DateTime?
-  passwordHash    String?
-  name            String
-  firstName       String?
-  lastName        String?
-  avatarMediaId   String?    @db.Uuid
-  phone           String?
-  whatsapp        String?
+  passwordHash    String?    @db.Text
+  name            String     @db.Text
+  firstName       String?    @db.Text
+  lastName        String?    @db.Text
+  avatarMediaId   String?    @db.Char(36)
+  phone           String?    @db.Text
+  whatsapp        String?    @db.Text
   locale          String     @default("en")
   timezone        String     @default("Asia/Karachi")
   status          UserStatus @default(ACTIVE)
@@ -487,18 +493,18 @@ model User {
 
 // Auth.js
 model Account {
-  id                String  @id @default(uuid()) @db.Uuid
-  userId            String  @db.Uuid
-  type              String
+  id                String  @id @default(uuid()) @db.Char(36)
+  userId            String  @db.Char(36)
+  type              String  @db.Text
   provider          String
   providerAccountId String
-  refresh_token     String?
-  access_token      String?
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
   expires_at        Int?
-  token_type        String?
-  scope             String?
-  id_token          String?
-  session_state     String?
+  token_type        String? @db.Text
+  scope             String? @db.Text
+  id_token          String? @db.Text
+  session_state     String? @db.Text
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -508,9 +514,9 @@ model Account {
 }
 
 model Session {
-  id           String   @id @default(uuid()) @db.Uuid
+  id           String   @id @default(uuid()) @db.Char(36)
   sessionToken String   @unique
-  userId       String   @db.Uuid
+  userId       String   @db.Char(36)
   expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -519,11 +525,11 @@ model Session {
 }
 
 model VerificationToken {
-  id         String    @id @default(uuid()) @db.Uuid
+  id         String    @id @default(uuid()) @db.Char(36)
   identifier String
   tokenHash  String    @unique
   purpose    String // EMAIL_VERIFY | PASSWORD_RESET | INVITE | MAGIC_LINK
-  userId     String?   @db.Uuid
+  userId     String?   @db.Char(36)
   expires    DateTime
   usedAt     DateTime?
   createdAt  DateTime  @default(now())
@@ -535,10 +541,10 @@ model VerificationToken {
 }
 
 model Role {
-  id          String   @id @default(uuid()) @db.Uuid
+  id          String   @id @default(uuid()) @db.Char(36)
   key         RoleKey  @unique
-  name        String
-  description String?
+  name        String   @db.Text
+  description String?  @db.MediumText
   isSystem    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -550,11 +556,11 @@ model Role {
 }
 
 model Permission {
-  id          String   @id @default(uuid()) @db.Uuid
+  id          String   @id @default(uuid()) @db.Char(36)
   key         String   @unique // e.g. courses.publish
   resource    String
-  action      String
-  description String?
+  action      String   @db.Text
+  description String?  @db.MediumText
   createdAt   DateTime @default(now())
 
   roles RolePermission[]
@@ -564,8 +570,8 @@ model Permission {
 }
 
 model RolePermission {
-  roleId       String @db.Uuid
-  permissionId String @db.Uuid
+  roleId       String @db.Char(36)
+  permissionId String @db.Char(36)
 
   role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
   permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
@@ -575,9 +581,9 @@ model RolePermission {
 }
 
 model UserRole {
-  userId     String   @db.Uuid
-  roleId     String   @db.Uuid
-  campusId   String?  @db.Uuid
+  userId     String   @db.Char(36)
+  roleId     String   @db.Char(36)
+  campusId   String?  @db.Char(36)
   assignedAt DateTime @default(now())
 
   user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -590,25 +596,25 @@ model UserRole {
 }
 
 model StudentProfile {
-  id                String    @id @default(uuid()) @db.Uuid
-  userId            String    @unique @db.Uuid
+  id                String    @id @default(uuid()) @db.Char(36)
+  userId            String    @unique @db.Char(36)
   studentNumber     String    @unique
   dateOfBirth       DateTime?
-  gender            String?
-  city              String?
+  gender            String?   @db.Text
+  city              String?   @db.Text
   country           String    @default("PK")
-  address           String?
-  education         String?
-  guardianName      String?
-  guardianPhone     String?
-  bio               String?
-  headline          String?
-  githubUrl         String?
-  linkedinUrl       String?
-  websiteUrl        String?
-  cvMediaId         String?   @db.Uuid
+  address           String?   @db.Text
+  education         String?   @db.Text
+  guardianName      String?   @db.Text
+  guardianPhone     String?   @db.Text
+  bio               String?   @db.MediumText
+  headline          String?   @db.Text
+  githubUrl         String?   @db.Text
+  linkedinUrl       String?   @db.Text
+  websiteUrl        String?   @db.Text
+  cvMediaId         String?   @db.Char(36)
   freelanceProfiles Json?
-  campusId          String?   @db.Uuid
+  campusId          String?   @db.Char(36)
   isTestData        Boolean   @default(false)
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
@@ -643,18 +649,19 @@ model StudentProfile {
 }
 
 model InstructorProfile {
-  id              String   @id @default(uuid()) @db.Uuid
-  userId          String   @unique @db.Uuid
+  id              String   @id @default(uuid()) @db.Char(36)
+  userId          String   @unique @db.Char(36)
   slug            String   @unique
-  title           String? // e.g. "Senior Performance Marketer"
-  bio             String?
-  expertise       String[]
+  title           String?  @db.Text // e.g. "Senior Performance Marketer"
+  bio             String?  @db.MediumText
+  /// [StringList]
+  expertise       Json     @default("[]")
   yearsExperience Int?
-  linkedinUrl     String?
-  websiteUrl      String?
+  linkedinUrl     String?  @db.Text
+  websiteUrl      String?  @db.Text
   isFeatured      Boolean  @default(false)
   isPublic        Boolean  @default(true)
-  campusId        String?  @db.Uuid
+  campusId        String?  @db.Char(36)
   isTestData      Boolean  @default(false)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -669,12 +676,12 @@ model InstructorProfile {
 }
 
 model StaffProfile {
-  id         String   @id @default(uuid()) @db.Uuid
-  userId     String   @unique @db.Uuid
+  id         String   @id @default(uuid()) @db.Char(36)
+  userId     String   @unique @db.Char(36)
   employeeId String   @unique
-  jobTitle   String?
-  department String?
-  campusId   String?  @db.Uuid
+  jobTitle   String?  @db.Text
+  department String?  @db.Text
+  campusId   String?  @db.Char(36)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -690,14 +697,14 @@ model StaffProfile {
 // ─────────────────────────────────────────────────────────────
 
 model Campus {
-  id        String   @id @default(uuid()) @db.Uuid
+  id        String   @id @default(uuid()) @db.Char(36)
   code      String   @unique
-  name      String
-  address   String?
-  city      String
+  name      String   @db.Text
+  address   String?  @db.Text
+  city      String   @db.Text
   country   String   @default("PK")
-  phone     String?
-  email     String?
+  phone     String?  @db.Text
+  email     String?  @db.Text
   timezone  String   @default("Asia/Karachi")
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
@@ -716,12 +723,13 @@ model Campus {
 }
 
 model Classroom {
-  id        String   @id @default(uuid()) @db.Uuid
-  campusId  String   @db.Uuid
+  id        String   @id @default(uuid()) @db.Char(36)
+  campusId  String   @db.Char(36)
   name      String
   capacity  Int      @default(18)
-  floor     String?
-  equipment String[]
+  floor     String?  @db.Text
+  /// [StringList]
+  equipment Json     @default("[]")
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -738,13 +746,13 @@ model Classroom {
 // ─────────────────────────────────────────────────────────────
 
 model Category {
-  id          String   @id @default(uuid()) @db.Uuid
+  id          String   @id @default(uuid()) @db.Char(36)
   slug        String   @unique
-  name        String
-  description String?
+  name        String   @db.Text
+  description String?  @db.MediumText
   artworkKey  String   @default("ai") // visual identity key for artwork system
   order       Int      @default(0)
-  parentId    String?  @db.Uuid
+  parentId    String?  @db.Char(36)
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -757,9 +765,9 @@ model Category {
 }
 
 model Skill {
-  id        String   @id @default(uuid()) @db.Uuid
+  id        String   @id @default(uuid()) @db.Char(36)
   slug      String   @unique
-  name      String
+  name      String   @db.Text
   createdAt DateTime @default(now())
 
   courses  CourseSkill[]
@@ -770,13 +778,13 @@ model Skill {
 }
 
 model Course {
-  id                 String        @id @default(uuid()) @db.Uuid
+  id                 String        @id @default(uuid()) @db.Char(36)
   slug               String        @unique
-  title              String
-  subtitle           String?
-  description        String? // sanitized HTML
-  shortDescription   String?
-  categoryId         String?       @db.Uuid
+  title              String        @db.Text
+  subtitle           String?       @db.Text
+  description        String?       @db.MediumText // sanitized HTML
+  shortDescription   String?       @db.MediumText
+  categoryId         String?       @db.Char(36)
   level              CourseLevel   @default(BEGINNER)
   mode               LearningMode  @default(HYBRID)
   durationWeeks      Int?
@@ -785,25 +793,28 @@ model Course {
   price              Decimal       @default(0) @db.Decimal(12, 2)
   discountPrice      Decimal?      @db.Decimal(12, 2)
   currency           String        @default("PKR")
-  artworkMediaId     String?       @db.Uuid
-  promoVideoMediaId  String?       @db.Uuid
+  artworkMediaId     String?       @db.Char(36)
+  promoVideoMediaId  String?       @db.Char(36)
   status             ContentStatus @default(DRAFT)
   publishedAt        DateTime?
   featured           Boolean       @default(false)
-  outcomes           String[]
-  prerequisites      String[]
-  careerOutcomes     String[]
+  /// [StringList]
+  outcomes           Json          @default("[]")
+  /// [StringList]
+  prerequisites      Json          @default("[]")
+  /// [StringList]
+  careerOutcomes     Json          @default("[]")
   faqs               Json? // [{question, answer}]
-  seoTitle           String?
-  seoDescription     String?
-  ogImageMediaId     String?       @db.Uuid
+  seoTitle           String?       @db.Text
+  seoDescription     String?       @db.MediumText
+  ogImageMediaId     String?       @db.Char(36)
   noindex            Boolean       @default(false)
   ratingAvg          Decimal       @default(0) @db.Decimal(3, 2)
   ratingCount        Int           @default(0)
   studentCount       Int           @default(0)
   leaderboardEnabled Boolean       @default(false)
-  campusId           String?       @db.Uuid
-  createdById        String?       @db.Uuid
+  campusId           String?       @db.Char(36)
+  createdById        String?       @db.Char(36)
   isTestData         Boolean       @default(false)
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
@@ -840,12 +851,13 @@ model Course {
   @@index([status, publishedAt])
   @@index([categoryId])
   @@index([featured])
+  @@fulltext([title, subtitle, shortDescription, description])
   @@map("courses")
 }
 
 model CourseSkill {
-  courseId String @db.Uuid
-  skillId  String @db.Uuid
+  courseId String @db.Char(36)
+  skillId  String @db.Char(36)
 
   course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
   skill  Skill  @relation(fields: [skillId], references: [id], onDelete: Cascade)
@@ -855,8 +867,8 @@ model CourseSkill {
 }
 
 model InstructorCourse {
-  instructorId String  @db.Uuid
-  courseId     String  @db.Uuid
+  instructorId String  @db.Char(36)
+  courseId     String  @db.Char(36)
   isLead       Boolean @default(false)
 
   instructor InstructorProfile @relation(fields: [instructorId], references: [id], onDelete: Cascade)
@@ -867,10 +879,10 @@ model InstructorCourse {
 }
 
 model CourseModule {
-  id          String   @id @default(uuid()) @db.Uuid
-  courseId    String   @db.Uuid
-  title       String
-  description String?
+  id          String   @id @default(uuid()) @db.Char(36)
+  courseId    String   @db.Char(36)
+  title       String   @db.Text
+  description String?  @db.MediumText
   order       Int      @default(0)
   isPublished Boolean  @default(true)
   createdAt   DateTime @default(now())
@@ -884,9 +896,9 @@ model CourseModule {
 }
 
 model CourseUnit {
-  id        String   @id @default(uuid()) @db.Uuid
-  moduleId  String   @db.Uuid
-  title     String
+  id        String   @id @default(uuid()) @db.Char(36)
+  moduleId  String   @db.Char(36)
+  title     String   @db.Text
   order     Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -899,22 +911,23 @@ model CourseUnit {
 }
 
 model Lesson {
-  id              String     @id @default(uuid()) @db.Uuid
-  unitId          String     @db.Uuid
-  title           String
+  id              String     @id @default(uuid()) @db.Char(36)
+  unitId          String     @db.Char(36)
+  title           String     @db.Text
   slug            String
   type            LessonType @default(VIDEO)
-  content         String? // sanitized HTML for TEXT lessons / description
-  videoMediaId    String?    @db.Uuid
-  videoUrl        String? // external (e.g. Vimeo/YouTube) when not stored
+  content         String?    @db.MediumText // sanitized HTML for TEXT lessons / description
+  videoMediaId    String?    @db.Char(36)
+  videoUrl        String?    @db.Text // external (e.g. Vimeo/YouTube) when not stored
   durationSeconds Int        @default(0)
   order           Int        @default(0)
   isPreview       Boolean    @default(false)
   isPublished     Boolean    @default(true)
-  objectives      String[]
-  quizId          String?    @unique @db.Uuid
-  assignmentId    String?    @unique @db.Uuid
-  projectId       String?    @unique @db.Uuid
+  /// [StringList]
+  objectives      Json       @default("[]")
+  quizId          String?    @unique @db.Char(36)
+  assignmentId    String?    @unique @db.Char(36)
+  projectId       String?    @unique @db.Char(36)
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
 
@@ -933,16 +946,17 @@ model Lesson {
 
   @@unique([unitId, slug])
   @@index([unitId, order])
+  @@fulltext([title, content])
   @@map("lessons")
 }
 
 model LessonResource {
-  id        String       @id @default(uuid()) @db.Uuid
-  lessonId  String       @db.Uuid
-  title     String
+  id        String       @id @default(uuid()) @db.Char(36)
+  lessonId  String       @db.Char(36)
+  title     String       @db.Text
   type      ResourceType @default(FILE)
-  mediaId   String?      @db.Uuid
-  url       String?
+  mediaId   String?      @db.Char(36)
+  url       String?      @db.Text
   order     Int          @default(0)
   createdAt DateTime     @default(now())
 
@@ -954,21 +968,22 @@ model LessonResource {
 }
 
 model Program {
-  id             String        @id @default(uuid()) @db.Uuid
+  id             String        @id @default(uuid()) @db.Char(36)
   slug           String        @unique
-  title          String
-  subtitle       String?
-  description    String?
-  artworkMediaId String?       @db.Uuid
+  title          String        @db.Text
+  subtitle       String?       @db.Text
+  description    String?       @db.MediumText
+  artworkMediaId String?       @db.Char(36)
   durationWeeks  Int?
   price          Decimal?      @db.Decimal(12, 2)
   currency       String        @default("PKR")
   status         ContentStatus @default(DRAFT)
   publishedAt    DateTime?
   featured       Boolean       @default(false)
-  outcomes       String[]
-  seoTitle       String?
-  seoDescription String?
+  /// [StringList]
+  outcomes       Json          @default("[]")
+  seoTitle       String?       @db.Text
+  seoDescription String?       @db.MediumText
   isTestData     Boolean       @default(false)
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
@@ -981,8 +996,8 @@ model Program {
 }
 
 model ProgramCourse {
-  programId String @db.Uuid
-  courseId  String @db.Uuid
+  programId String @db.Char(36)
+  courseId  String @db.Char(36)
   order     Int    @default(0)
 
   program Program @relation(fields: [programId], references: [id], onDelete: Cascade)
@@ -993,11 +1008,11 @@ model ProgramCourse {
 }
 
 model LearningPath {
-  id          String        @id @default(uuid()) @db.Uuid
+  id          String        @id @default(uuid()) @db.Char(36)
   slug        String        @unique
-  title       String
-  description String?
-  careerGoal  String? // e.g. "AI Marketing Specialist"
+  title       String        @db.Text
+  description String?       @db.MediumText
+  careerGoal  String?       @db.Text // e.g. "AI Marketing Specialist"
   status      ContentStatus @default(DRAFT)
   publishedAt DateTime?
   featured    Boolean       @default(false)
@@ -1012,11 +1027,11 @@ model LearningPath {
 }
 
 model LearningPathStep {
-  id          String  @id @default(uuid()) @db.Uuid
-  pathId      String  @db.Uuid
-  courseId    String? @db.Uuid
-  title       String
-  description String?
+  id          String  @id @default(uuid()) @db.Char(36)
+  pathId      String  @db.Char(36)
+  courseId    String? @db.Char(36)
+  title       String  @db.Text
+  description String? @db.MediumText
   order       Int     @default(0)
   isOptional  Boolean @default(false)
 
@@ -1028,8 +1043,8 @@ model LearningPathStep {
 }
 
 model CourseCompletionRule {
-  id                        String   @id @default(uuid()) @db.Uuid
-  courseId                  String   @db.Uuid
+  id                        String   @id @default(uuid()) @db.Char(36)
+  courseId                  String   @db.Char(36)
   requireAllLessons         Boolean  @default(true)
   minAttendancePercent      Int?
   minQuizPercent            Int?
@@ -1048,9 +1063,9 @@ model CourseCompletionRule {
 }
 
 model FeePlan {
-  id          String   @id @default(uuid()) @db.Uuid
-  courseId    String   @db.Uuid
-  name        String
+  id          String   @id @default(uuid()) @db.Char(36)
+  courseId    String   @db.Char(36)
+  name        String   @db.Text
   totalAmount Decimal  @db.Decimal(12, 2)
   currency    String   @default("PKR")
   isDefault   Boolean  @default(false)
@@ -1067,9 +1082,9 @@ model FeePlan {
 }
 
 model FeeInstallment {
-  id           String  @id @default(uuid()) @db.Uuid
-  feePlanId    String  @db.Uuid
-  label        String
+  id           String  @id @default(uuid()) @db.Char(36)
+  feePlanId    String  @db.Char(36)
+  label        String  @db.Text
   amount       Decimal @db.Decimal(12, 2)
   dueAfterDays Int     @default(0)
   order        Int     @default(0)
@@ -1081,12 +1096,12 @@ model FeeInstallment {
 }
 
 model Review {
-  id         String   @id @default(uuid()) @db.Uuid
-  courseId   String   @db.Uuid
-  studentId  String   @db.Uuid
+  id         String   @id @default(uuid()) @db.Char(36)
+  courseId   String   @db.Char(36)
+  studentId  String   @db.Char(36)
   rating     Int
-  title      String?
-  body       String?
+  title      String?  @db.Text
+  body       String?  @db.MediumText
   isApproved Boolean  @default(false)
   isFeatured Boolean  @default(false)
   createdAt  DateTime @default(now())
@@ -1104,10 +1119,10 @@ model Review {
 // ─────────────────────────────────────────────────────────────
 
 model Quiz {
-  id                  String    @id @default(uuid()) @db.Uuid
-  courseId            String    @db.Uuid
-  title               String
-  description         String?
+  id                  String    @id @default(uuid()) @db.Char(36)
+  courseId            String    @db.Char(36)
+  title               String    @db.Text
+  description         String?   @db.MediumText
   timeLimitMinutes    Int?
   attemptLimit        Int       @default(3)
   passingScore        Int       @default(60)
@@ -1132,16 +1147,16 @@ model Quiz {
 }
 
 model Question {
-  id           String       @id @default(uuid()) @db.Uuid
-  quizId       String?      @db.Uuid
-  examId       String?      @db.Uuid
+  id           String       @id @default(uuid()) @db.Char(36)
+  quizId       String?      @db.Char(36)
+  examId       String?      @db.Char(36)
   type         QuestionType
-  prompt       String
-  explanation  String?
-  imageMediaId String?      @db.Uuid
-  codeLanguage String?
-  codeStarter  String?
-  topic        String?
+  prompt       String       @db.MediumText
+  explanation  String?      @db.MediumText
+  imageMediaId String?      @db.Char(36)
+  codeLanguage String?      @db.Text
+  codeStarter  String?      @db.Text
+  topic        String?      @db.Text
   difficulty   Difficulty   @default(MEDIUM)
   points       Decimal      @default(1) @db.Decimal(6, 2)
   order        Int          @default(0)
@@ -1162,12 +1177,12 @@ model Question {
 }
 
 model QuestionOption {
-  id         String  @id @default(uuid()) @db.Uuid
-  questionId String  @db.Uuid
-  text       String
+  id         String  @id @default(uuid()) @db.Char(36)
+  questionId String  @db.Char(36)
+  text       String  @db.MediumText
   isCorrect  Boolean @default(false)
   order      Int     @default(0)
-  matchKey   String? // for MATCHING pairs
+  matchKey   String? @db.Text // for MATCHING pairs
 
   question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
@@ -1176,18 +1191,20 @@ model QuestionOption {
 }
 
 model QuizAttempt {
-  id            String        @id @default(uuid()) @db.Uuid
-  quizId        String        @db.Uuid
-  studentId     String        @db.Uuid
-  enrollmentId  String?       @db.Uuid
+  id            String        @id @default(uuid()) @db.Char(36)
+  quizId        String        @db.Char(36)
+  studentId     String        @db.Char(36)
+  enrollmentId  String?       @db.Char(36)
   attemptNumber Int           @default(1)
   status        AttemptStatus @default(IN_PROGRESS)
-  questionIds   String[]      @db.Uuid
+  /// [StringList]
+  questionIds   Json          @default("[]")
   score         Decimal       @default(0) @db.Decimal(8, 2)
   maxScore      Decimal       @default(0) @db.Decimal(8, 2)
   percent       Decimal       @default(0) @db.Decimal(5, 2)
   passed        Boolean       @default(false)
-  weakTopics    String[]
+  /// [StringList]
+  weakTopics    Json          @default("[]")
   startedAt     DateTime      @default(now())
   submittedAt   DateTime?
   gradedAt      DateTime?
@@ -1204,16 +1221,17 @@ model QuizAttempt {
 }
 
 model QuizAnswer {
-  id                 String   @id @default(uuid()) @db.Uuid
-  attemptId          String   @db.Uuid
-  questionId         String   @db.Uuid
-  selectedOptionIds  String[] @db.Uuid
-  textAnswer         String?
+  id                 String   @id @default(uuid()) @db.Char(36)
+  attemptId          String   @db.Char(36)
+  questionId         String   @db.Char(36)
+  /// [StringList]
+  selectedOptionIds  Json     @default("[]")
+  textAnswer         String?  @db.MediumText
   structured         Json? // matching / ordering / code
   isCorrect          Boolean?
   pointsAwarded      Decimal  @default(0) @db.Decimal(6, 2)
   needsManualGrading Boolean  @default(false)
-  graderNote         String?
+  graderNote         String?  @db.Text
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
@@ -1225,9 +1243,9 @@ model QuizAnswer {
 }
 
 model Rubric {
-  id          String   @id @default(uuid()) @db.Uuid
-  title       String
-  description String?
+  id          String   @id @default(uuid()) @db.Char(36)
+  title       String   @db.Text
+  description String?  @db.MediumText
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -1239,10 +1257,10 @@ model Rubric {
 }
 
 model RubricCriterion {
-  id          String  @id @default(uuid()) @db.Uuid
-  rubricId    String  @db.Uuid
-  title       String
-  description String?
+  id          String  @id @default(uuid()) @db.Char(36)
+  rubricId    String  @db.Char(36)
+  title       String  @db.Text
+  description String? @db.MediumText
   maxPoints   Decimal @db.Decimal(6, 2)
   order       Int     @default(0)
 
@@ -1254,19 +1272,20 @@ model RubricCriterion {
 }
 
 model Assignment {
-  id                 String           @id @default(uuid()) @db.Uuid
-  courseId           String           @db.Uuid
-  title              String
-  instructions       String? // sanitized HTML
-  allowedKinds       SubmissionKind[]
-  maxPoints          Decimal          @default(100) @db.Decimal(6, 2)
+  id                 String    @id @default(uuid()) @db.Char(36)
+  courseId           String    @db.Char(36)
+  title              String    @db.Text
+  instructions       String?   @db.MediumText // sanitized HTML
+  /// [SubmissionKindList]
+  allowedKinds       Json      @default("[]")
+  maxPoints          Decimal   @default(100) @db.Decimal(6, 2)
   dueAt              DateTime?
-  allowLate          Boolean          @default(true)
-  latePenaltyPercent Int              @default(0)
-  rubricId           String?          @db.Uuid
-  isPublished        Boolean          @default(false)
-  createdAt          DateTime         @default(now())
-  updatedAt          DateTime         @updatedAt
+  allowLate          Boolean   @default(true)
+  latePenaltyPercent Int       @default(0)
+  rubricId           String?   @db.Char(36)
+  isPublished        Boolean   @default(false)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   course      Course                 @relation(fields: [courseId], references: [id], onDelete: Cascade)
   rubric      Rubric?                @relation(fields: [rubricId], references: [id], onDelete: SetNull)
@@ -1278,19 +1297,19 @@ model Assignment {
 }
 
 model AssignmentSubmission {
-  id           String           @id @default(uuid()) @db.Uuid
-  assignmentId String           @db.Uuid
-  studentId    String           @db.Uuid
-  enrollmentId String?          @db.Uuid
+  id           String           @id @default(uuid()) @db.Char(36)
+  assignmentId String           @db.Char(36)
+  studentId    String           @db.Char(36)
+  enrollmentId String?          @db.Char(36)
   kind         SubmissionKind   @default(TEXT)
-  text         String?
-  url          String?
+  text         String?          @db.MediumText
+  url          String?          @db.Text
   status       SubmissionStatus @default(DRAFT)
   attempt      Int              @default(1)
   score        Decimal?         @db.Decimal(6, 2)
   submittedAt  DateTime?
   reviewedAt   DateTime?
-  reviewedById String?          @db.Uuid
+  reviewedById String?          @db.Char(36)
   isLate       Boolean          @default(false)
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
@@ -1309,10 +1328,10 @@ model AssignmentSubmission {
 }
 
 model SubmissionFile {
-  id                  String   @id @default(uuid()) @db.Uuid
-  submissionId        String?  @db.Uuid
-  projectSubmissionId String?  @db.Uuid
-  mediaId             String   @db.Uuid
+  id                  String   @id @default(uuid()) @db.Char(36)
+  submissionId        String?  @db.Char(36)
+  projectSubmissionId String?  @db.Char(36)
+  mediaId             String   @db.Char(36)
   createdAt           DateTime @default(now())
 
   submission        AssignmentSubmission? @relation(fields: [submissionId], references: [id], onDelete: Cascade)
@@ -1325,10 +1344,10 @@ model SubmissionFile {
 }
 
 model AssignmentFeedback {
-  id           String   @id @default(uuid()) @db.Uuid
-  submissionId String   @db.Uuid
-  authorId     String   @db.Uuid
-  body         String
+  id           String   @id @default(uuid()) @db.Char(36)
+  submissionId String   @db.Char(36)
+  authorId     String   @db.Char(36)
+  body         String   @db.MediumText
   createdAt    DateTime @default(now())
 
   submission AssignmentSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
@@ -1338,12 +1357,12 @@ model AssignmentFeedback {
 }
 
 model RubricScore {
-  id                  String  @id @default(uuid()) @db.Uuid
-  criterionId         String  @db.Uuid
-  submissionId        String? @db.Uuid
-  projectSubmissionId String? @db.Uuid
+  id                  String  @id @default(uuid()) @db.Char(36)
+  criterionId         String  @db.Char(36)
+  submissionId        String? @db.Char(36)
+  projectSubmissionId String? @db.Char(36)
   points              Decimal @db.Decimal(6, 2)
-  comment             String?
+  comment             String? @db.Text
 
   criterion         RubricCriterion       @relation(fields: [criterionId], references: [id], onDelete: Cascade)
   submission        AssignmentSubmission? @relation(fields: [submissionId], references: [id], onDelete: Cascade)
@@ -1355,16 +1374,17 @@ model RubricScore {
 }
 
 model Project {
-  id             String    @id @default(uuid()) @db.Uuid
-  courseId       String    @db.Uuid
-  title          String
-  overview       String?
-  requirements   String? // sanitized HTML
-  skills         String[]
+  id             String    @id @default(uuid()) @db.Char(36)
+  courseId       String    @db.Char(36)
+  title          String    @db.Text
+  overview       String?   @db.Text
+  requirements   String?   @db.Text // sanitized HTML
+  /// [StringList]
+  skills         Json      @default("[]")
   resources      Json? // [{title,url}]
   deadline       DateTime?
   maxPoints      Decimal   @default(100) @db.Decimal(6, 2)
-  rubricId       String?   @db.Uuid
+  rubricId       String?   @db.Char(36)
   addToPortfolio Boolean   @default(true)
   isPublished    Boolean   @default(false)
   order          Int       @default(0)
@@ -1382,10 +1402,10 @@ model Project {
 }
 
 model ProjectMilestone {
-  id          String    @id @default(uuid()) @db.Uuid
-  projectId   String    @db.Uuid
-  title       String
-  description String?
+  id          String    @id @default(uuid()) @db.Char(36)
+  projectId   String    @db.Char(36)
+  title       String    @db.Text
+  description String?   @db.MediumText
   dueAt       DateTime?
   order       Int       @default(0)
 
@@ -1396,21 +1416,22 @@ model ProjectMilestone {
 }
 
 model ProjectSubmission {
-  id                 String           @id @default(uuid()) @db.Uuid
-  projectId          String           @db.Uuid
-  studentId          String           @db.Uuid
-  enrollmentId       String?          @db.Uuid
-  title              String?
-  description        String?
-  repoUrl            String?
-  liveUrl            String?
+  id                 String           @id @default(uuid()) @db.Char(36)
+  projectId          String           @db.Char(36)
+  studentId          String           @db.Char(36)
+  enrollmentId       String?          @db.Char(36)
+  title              String?          @db.Text
+  description        String?          @db.MediumText
+  repoUrl            String?          @db.Text
+  liveUrl            String?          @db.Text
   status             SubmissionStatus @default(DRAFT)
   score              Decimal?         @db.Decimal(6, 2)
-  milestonesDone     String[]         @db.Uuid
+  /// [StringList]
+  milestonesDone     Json             @default("[]")
   submittedAt        DateTime?
   reviewedAt         DateTime?
-  reviewedById       String?          @db.Uuid
-  portfolioProjectId String?          @unique @db.Uuid
+  reviewedById       String?          @db.Char(36)
+  portfolioProjectId String?          @unique @db.Char(36)
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
 
@@ -1428,10 +1449,10 @@ model ProjectSubmission {
 }
 
 model ProjectFeedback {
-  id           String   @id @default(uuid()) @db.Uuid
-  submissionId String   @db.Uuid
-  authorId     String   @db.Uuid
-  body         String
+  id           String   @id @default(uuid()) @db.Char(36)
+  submissionId String   @db.Char(36)
+  authorId     String   @db.Char(36)
+  body         String   @db.MediumText
   createdAt    DateTime @default(now())
 
   submission ProjectSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
@@ -1441,12 +1462,12 @@ model ProjectFeedback {
 }
 
 model Exam {
-  id               String    @id @default(uuid()) @db.Uuid
-  courseId         String    @db.Uuid
-  batchId          String?   @db.Uuid
-  title            String
+  id               String    @id @default(uuid()) @db.Char(36)
+  courseId         String    @db.Char(36)
+  batchId          String?   @db.Char(36)
+  title            String    @db.Text
   kind             ExamKind  @default(FINAL)
-  description      String?
+  description      String?   @db.MediumText
   scheduledAt      DateTime?
   durationMinutes  Int       @default(60)
   passingScore     Int       @default(50)
@@ -1467,9 +1488,9 @@ model Exam {
 }
 
 model ExamAttempt {
-  id          String        @id @default(uuid()) @db.Uuid
-  examId      String        @db.Uuid
-  studentId   String        @db.Uuid
+  id          String        @id @default(uuid()) @db.Char(36)
+  examId      String        @db.Char(36)
+  studentId   String        @db.Char(36)
   status      AttemptStatus @default(IN_PROGRESS)
   answers     Json? // {questionId: answer}
   score       Decimal       @default(0) @db.Decimal(8, 2)
@@ -1493,10 +1514,10 @@ model ExamAttempt {
 // ─────────────────────────────────────────────────────────────
 
 model Enrollment {
-  id          String           @id @default(uuid()) @db.Uuid
-  studentId   String           @db.Uuid
-  courseId    String           @db.Uuid
-  batchId     String?          @db.Uuid
+  id          String           @id @default(uuid()) @db.Char(36)
+  studentId   String           @db.Char(36)
+  courseId    String           @db.Char(36)
+  batchId     String?          @db.Char(36)
   source      EnrollmentSource @default(DIRECT)
   status      EnrollmentStatus @default(ACTIVE)
   startedAt   DateTime         @default(now())
@@ -1526,13 +1547,13 @@ model Enrollment {
 }
 
 model CourseProgress {
-  id               String    @id @default(uuid()) @db.Uuid
-  enrollmentId     String    @unique @db.Uuid
+  id               String    @id @default(uuid()) @db.Char(36)
+  enrollmentId     String    @unique @db.Char(36)
   percent          Decimal   @default(0) @db.Decimal(5, 2)
   lessonsCompleted Int       @default(0)
   lessonsTotal     Int       @default(0)
   secondsSpent     Int       @default(0)
-  lastLessonId     String?   @db.Uuid
+  lastLessonId     String?   @db.Char(36)
   lastActivityAt   DateTime?
   updatedAt        DateTime  @updatedAt
 
@@ -1542,9 +1563,9 @@ model CourseProgress {
 }
 
 model LessonProgress {
-  id           String         @id @default(uuid()) @db.Uuid
-  enrollmentId String         @db.Uuid
-  lessonId     String         @db.Uuid
+  id           String         @id @default(uuid()) @db.Char(36)
+  enrollmentId String         @db.Char(36)
+  lessonId     String         @db.Char(36)
   status       ProgressStatus @default(NOT_STARTED)
   secondsSpent Int            @default(0)
   startedAt    DateTime?
@@ -1560,9 +1581,9 @@ model LessonProgress {
 }
 
 model VideoProgress {
-  id              String   @id @default(uuid()) @db.Uuid
-  enrollmentId    String   @db.Uuid
-  lessonId        String   @db.Uuid
+  id              String   @id @default(uuid()) @db.Char(36)
+  enrollmentId    String   @db.Char(36)
+  lessonId        String   @db.Char(36)
   positionSeconds Int      @default(0)
   percent         Decimal  @default(0) @db.Decimal(5, 2)
   updatedAt       DateTime @updatedAt
@@ -1575,10 +1596,10 @@ model VideoProgress {
 }
 
 model LessonNote {
-  id               String   @id @default(uuid()) @db.Uuid
-  studentId        String   @db.Uuid
-  lessonId         String   @db.Uuid
-  body             String
+  id               String   @id @default(uuid()) @db.Char(36)
+  studentId        String   @db.Char(36)
+  lessonId         String   @db.Char(36)
+  body             String   @db.MediumText
   timestampSeconds Int?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
@@ -1591,11 +1612,11 @@ model LessonNote {
 }
 
 model LessonBookmark {
-  id               String   @id @default(uuid()) @db.Uuid
-  studentId        String   @db.Uuid
-  lessonId         String   @db.Uuid
+  id               String   @id @default(uuid()) @db.Char(36)
+  studentId        String   @db.Char(36)
+  lessonId         String   @db.Char(36)
   timestampSeconds Int      @default(0)
-  label            String?
+  label            String?  @db.Text
   createdAt        DateTime @default(now())
 
   student StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
@@ -1606,8 +1627,8 @@ model LessonBookmark {
 }
 
 model CourseCompletion {
-  id                String   @id @default(uuid()) @db.Uuid
-  enrollmentId      String   @unique @db.Uuid
+  id                String   @id @default(uuid()) @db.Char(36)
+  enrollmentId      String   @unique @db.Char(36)
   completedAt       DateTime @default(now())
   finalPercent      Decimal? @db.Decimal(5, 2)
   attendancePercent Decimal? @db.Decimal(5, 2)
@@ -1623,13 +1644,13 @@ model CourseCompletion {
 // ─────────────────────────────────────────────────────────────
 
 model Batch {
-  id           String       @id @default(uuid()) @db.Uuid
+  id           String       @id @default(uuid()) @db.Char(36)
   code         String       @unique
-  name         String
-  courseId     String       @db.Uuid
-  campusId     String?      @db.Uuid
-  classroomId  String?      @db.Uuid
-  instructorId String?      @db.Uuid
+  name         String       @db.Text
+  courseId     String       @db.Char(36)
+  campusId     String?      @db.Char(36)
+  classroomId  String?      @db.Char(36)
+  instructorId String?      @db.Char(36)
   mode         LearningMode @default(HYBRID)
   capacity     Int          @default(18)
   startDate    DateTime
@@ -1662,8 +1683,8 @@ model Batch {
 }
 
 model BatchStudent {
-  batchId   String    @db.Uuid
-  studentId String    @db.Uuid
+  batchId   String    @db.Char(36)
+  studentId String    @db.Char(36)
   joinedAt  DateTime  @default(now())
   leftAt    DateTime?
 
@@ -1676,11 +1697,11 @@ model BatchStudent {
 }
 
 model BatchSchedule {
-  id        String @id @default(uuid()) @db.Uuid
-  batchId   String @db.Uuid
+  id        String @id @default(uuid()) @db.Char(36)
+  batchId   String @db.Char(36)
   dayOfWeek Int // 0 = Sunday
-  startTime String // "18:00"
-  endTime   String // "20:00"
+  startTime String @db.Text // "18:00"
+  endTime   String @db.Text // "20:00"
 
   batch Batch @relation(fields: [batchId], references: [id], onDelete: Cascade)
 
@@ -1689,23 +1710,23 @@ model BatchSchedule {
 }
 
 model LiveClass {
-  id              String          @id @default(uuid()) @db.Uuid
-  courseId        String          @db.Uuid
-  batchId         String?         @db.Uuid
-  lessonId        String?         @db.Uuid
-  hostId          String?         @db.Uuid
-  title           String
-  description     String?
+  id              String          @id @default(uuid()) @db.Char(36)
+  courseId        String          @db.Char(36)
+  batchId         String?         @db.Char(36)
+  lessonId        String?         @db.Char(36)
+  hostId          String?         @db.Char(36)
+  title           String          @db.Text
+  description     String?         @db.MediumText
   startsAt        DateTime
   endsAt          DateTime
   provider        LiveProvider    @default(MANUAL)
-  meetingUrl      String?
-  meetingId       String?
-  meetingPasscode String?
+  meetingUrl      String?         @db.Text
+  meetingId       String?         @db.Text
+  meetingPasscode String?         @db.Text
   status          LiveClassStatus @default(SCHEDULED)
-  notes           String?
-  aiSummary       String?
-  transcript      String?
+  notes           String?         @db.MediumText
+  aiSummary       String?         @db.MediumText
+  transcript      String?         @db.MediumText
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 
@@ -1723,10 +1744,10 @@ model LiveClass {
 }
 
 model LiveClassRecording {
-  id              String   @id @default(uuid()) @db.Uuid
-  liveClassId     String   @db.Uuid
-  mediaId         String?  @db.Uuid
-  url             String?
+  id              String   @id @default(uuid()) @db.Char(36)
+  liveClassId     String   @db.Char(36)
+  mediaId         String?  @db.Char(36)
+  url             String?  @db.Text
   durationSeconds Int?
   createdAt       DateTime @default(now())
 
@@ -1738,8 +1759,8 @@ model LiveClassRecording {
 }
 
 model LiveClassAttendance {
-  liveClassId String    @db.Uuid
-  studentId   String    @db.Uuid
+  liveClassId String    @db.Char(36)
+  studentId   String    @db.Char(36)
   joinedAt    DateTime  @default(now())
   leftAt      DateTime?
 
@@ -1751,15 +1772,15 @@ model LiveClassAttendance {
 }
 
 model Attendance {
-  id          String           @id @default(uuid()) @db.Uuid
-  batchId     String           @db.Uuid
-  studentId   String           @db.Uuid
+  id          String           @id @default(uuid()) @db.Char(36)
+  batchId     String           @db.Char(36)
+  studentId   String           @db.Char(36)
   sessionDate DateTime         @db.Date
-  liveClassId String?          @db.Uuid
+  liveClassId String?          @db.Char(36)
   status      AttendanceStatus @default(PRESENT)
   method      AttendanceMethod @default(MANUAL)
-  markedById  String?          @db.Uuid
-  note        String?
+  markedById  String?          @db.Char(36)
+  note        String?          @db.Text
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
@@ -1778,12 +1799,12 @@ model Attendance {
 // ─────────────────────────────────────────────────────────────
 
 model Campaign {
-  id          String     @id @default(uuid()) @db.Uuid
-  name        String
+  id          String     @id @default(uuid()) @db.Char(36)
+  name        String     @db.Text
   source      LeadSource
-  utmSource   String?
-  utmMedium   String?
-  utmCampaign String?
+  utmSource   String?    @db.Text
+  utmMedium   String?    @db.Text
+  utmCampaign String?    @db.Text
   budget      Decimal?   @db.Decimal(12, 2)
   startDate   DateTime?
   endDate     DateTime?
@@ -1797,27 +1818,27 @@ model Campaign {
 }
 
 model Lead {
-  id              String        @id @default(uuid()) @db.Uuid
-  name            String
+  id              String        @id @default(uuid()) @db.Char(36)
+  name            String        @db.Text
   phone           String?
-  whatsapp        String?
+  whatsapp        String?       @db.Text
   email           String?
-  city            String?
-  education       String?
-  courseId        String?       @db.Uuid
-  interest        String?
+  city            String?       @db.Text
+  education       String?       @db.Text
+  courseId        String?       @db.Char(36)
+  interest        String?       @db.Text
   source          LeadSource    @default(WEBSITE)
-  campaignId      String?       @db.Uuid
+  campaignId      String?       @db.Char(36)
   stage           LeadStage     @default(NEW)
-  lostReason      String?
-  counsellorId    String?       @db.Uuid
+  lostReason      String?       @db.MediumText
+  counsellorId    String?       @db.Char(36)
   score           Int           @default(0)
-  message         String?
+  message         String?       @db.MediumText
   preferredMode   LearningMode?
   nextFollowUpAt  DateTime?
   lastContactedAt DateTime?
-  convertedUserId String?       @db.Uuid
-  applicationId   String?       @unique @db.Uuid
+  convertedUserId String?       @db.Char(36)
+  applicationId   String?       @unique @db.Char(36)
   metadata        Json?
   isTestData      Boolean       @default(false)
   createdAt       DateTime      @default(now())
@@ -1842,11 +1863,11 @@ model Lead {
 }
 
 model LeadActivity {
-  id        String           @id @default(uuid()) @db.Uuid
-  leadId    String           @db.Uuid
-  actorId   String?          @db.Uuid
+  id        String           @id @default(uuid()) @db.Char(36)
+  leadId    String           @db.Char(36)
+  actorId   String?          @db.Char(36)
   type      LeadActivityType
-  summary   String
+  summary   String           @db.MediumText
   details   Json?
   createdAt DateTime         @default(now())
 
@@ -1858,10 +1879,10 @@ model LeadActivity {
 }
 
 model LeadTask {
-  id          String     @id @default(uuid()) @db.Uuid
-  leadId      String     @db.Uuid
-  assigneeId  String?    @db.Uuid
-  title       String
+  id          String     @id @default(uuid()) @db.Char(36)
+  leadId      String     @db.Char(36)
+  assigneeId  String?    @db.Char(36)
+  title       String     @db.Text
   dueAt       DateTime?
   status      TaskStatus @default(OPEN)
   completedAt DateTime?
@@ -1876,10 +1897,10 @@ model LeadTask {
 }
 
 model LeadNote {
-  id        String   @id @default(uuid()) @db.Uuid
-  leadId    String   @db.Uuid
-  authorId  String?  @db.Uuid
-  body      String
+  id        String   @id @default(uuid()) @db.Char(36)
+  leadId    String   @db.Char(36)
+  authorId  String?  @db.Char(36)
+  body      String   @db.MediumText
   createdAt DateTime @default(now())
 
   lead   Lead  @relation(fields: [leadId], references: [id], onDelete: Cascade)
@@ -1890,22 +1911,22 @@ model LeadNote {
 }
 
 model Application {
-  id               String            @id @default(uuid()) @db.Uuid
+  id               String            @id @default(uuid()) @db.Char(36)
   number           String            @unique
-  applicantUserId  String?           @db.Uuid
-  courseId         String            @db.Uuid
+  applicantUserId  String?           @db.Char(36)
+  courseId         String            @db.Char(36)
   preferredMode    LearningMode      @default(HYBRID)
-  preferredBatchId String?           @db.Uuid
+  preferredBatchId String?           @db.Char(36)
   personal         Json // {firstName,lastName,email,phone,whatsapp,city,dateOfBirth,gender,address}
   education        Json // [{level,institution,field,year}]
   experience       Json? // [{title,company,years}]
-  goals            String?
+  goals            String?           @db.Text
   status           ApplicationStatus @default(DRAFT)
   submittedAt      DateTime?
-  reviewedById     String?           @db.Uuid
+  reviewedById     String?           @db.Char(36)
   reviewedAt       DateTime?
-  decisionNote     String?
-  enrollmentId     String?           @unique @db.Uuid
+  decisionNote     String?           @db.Text
+  enrollmentId     String?           @unique @db.Char(36)
   isTestData       Boolean           @default(false)
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
@@ -1923,10 +1944,10 @@ model Application {
 }
 
 model ApplicationDocument {
-  id            String   @id @default(uuid()) @db.Uuid
-  applicationId String   @db.Uuid
-  kind          String // CNIC | TRANSCRIPT | PHOTO | CV | OTHER
-  mediaId       String   @db.Uuid
+  id            String   @id @default(uuid()) @db.Char(36)
+  applicationId String   @db.Char(36)
+  kind          String   @db.Text // CNIC | TRANSCRIPT | PHOTO | CV | OTHER
+  mediaId       String   @db.Char(36)
   createdAt     DateTime @default(now())
 
   application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
@@ -1941,25 +1962,25 @@ model ApplicationDocument {
 // ─────────────────────────────────────────────────────────────
 
 model Invoice {
-  id                 String        @id @default(uuid()) @db.Uuid
+  id                 String        @id @default(uuid()) @db.Char(36)
   number             String        @unique
-  studentId          String        @db.Uuid
-  enrollmentId       String?       @db.Uuid
-  feePlanId          String?       @db.Uuid
+  studentId          String        @db.Char(36)
+  enrollmentId       String?       @db.Char(36)
+  feePlanId          String?       @db.Char(36)
   status             InvoiceStatus @default(DRAFT)
   currency           String        @default("PKR")
   subtotal           Decimal       @default(0) @db.Decimal(12, 2)
   discountTotal      Decimal       @default(0) @db.Decimal(12, 2)
   total              Decimal       @default(0) @db.Decimal(12, 2)
   amountPaid         Decimal       @default(0) @db.Decimal(12, 2)
-  discountId         String?       @db.Uuid
-  scholarshipAwardId String?       @db.Uuid
+  discountId         String?       @db.Char(36)
+  scholarshipAwardId String?       @db.Char(36)
   issuedAt           DateTime?
   dueDate            DateTime?
   paidAt             DateTime?
-  notes              String?
-  issuedById         String?       @db.Uuid
-  pdfMediaId         String?       @db.Uuid
+  notes              String?       @db.MediumText
+  issuedById         String?       @db.Char(36)
+  pdfMediaId         String?       @db.Char(36)
   isTestData         Boolean       @default(false)
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
@@ -1982,9 +2003,9 @@ model Invoice {
 }
 
 model InvoiceLine {
-  id          String    @id @default(uuid()) @db.Uuid
-  invoiceId   String    @db.Uuid
-  description String
+  id          String    @id @default(uuid()) @db.Char(36)
+  invoiceId   String    @db.Char(36)
+  description String    @db.MediumText
   quantity    Int       @default(1)
   unitAmount  Decimal   @db.Decimal(12, 2)
   amount      Decimal   @db.Decimal(12, 2)
@@ -1998,17 +2019,17 @@ model InvoiceLine {
 }
 
 model Payment {
-  id            String          @id @default(uuid()) @db.Uuid
-  invoiceId     String          @db.Uuid
+  id            String          @id @default(uuid()) @db.Char(36)
+  invoiceId     String          @db.Char(36)
   provider      PaymentProvider
   providerRef   String?
-  method        String?
+  method        String?         @db.Text
   amount        Decimal         @db.Decimal(12, 2)
   currency      String          @default("PKR")
   status        PaymentStatus   @default(PENDING)
   paidAt        DateTime?
-  failureReason String?
-  recordedById  String?         @db.Uuid
+  failureReason String?         @db.MediumText
+  recordedById  String?         @db.Char(36)
   metadata      Json?
   isTestData    Boolean         @default(false)
   createdAt     DateTime        @default(now())
@@ -2026,10 +2047,10 @@ model Payment {
 }
 
 model Receipt {
-  id         String   @id @default(uuid()) @db.Uuid
+  id         String   @id @default(uuid()) @db.Char(36)
   number     String   @unique
-  paymentId  String   @unique @db.Uuid
-  pdfMediaId String?  @db.Uuid
+  paymentId  String   @unique @db.Char(36)
+  pdfMediaId String?  @db.Char(36)
   issuedAt   DateTime @default(now())
 
   payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
@@ -2038,14 +2059,14 @@ model Receipt {
 }
 
 model Refund {
-  id            String        @id @default(uuid()) @db.Uuid
-  invoiceId     String        @db.Uuid
-  paymentId     String?       @db.Uuid
+  id            String        @id @default(uuid()) @db.Char(36)
+  invoiceId     String        @db.Char(36)
+  paymentId     String?       @db.Char(36)
   amount        Decimal       @db.Decimal(12, 2)
-  reason        String
+  reason        String        @db.MediumText
   status        PaymentStatus @default(PENDING)
-  providerRef   String?
-  processedById String?       @db.Uuid
+  providerRef   String?       @db.Text
+  processedById String?       @db.Char(36)
   processedAt   DateTime?
   createdAt     DateTime      @default(now())
 
@@ -2058,16 +2079,17 @@ model Refund {
 }
 
 model Discount {
-  id        String       @id @default(uuid()) @db.Uuid
+  id        String       @id @default(uuid()) @db.Char(36)
   code      String       @unique
-  name      String
+  name      String       @db.Text
   type      DiscountType @default(PERCENT)
   value     Decimal      @db.Decimal(12, 2)
   maxUses   Int?
   usedCount Int          @default(0)
   validFrom DateTime?
   validTo   DateTime?
-  courseIds String[]     @db.Uuid
+  /// [StringList]
+  courseIds Json         @default("[]")
   isActive  Boolean      @default(true)
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
@@ -2080,13 +2102,13 @@ model Discount {
 }
 
 model Scholarship {
-  id          String       @id @default(uuid()) @db.Uuid
-  name        String
-  description String?
+  id          String       @id @default(uuid()) @db.Char(36)
+  name        String       @db.Text
+  description String?      @db.MediumText
   type        DiscountType @default(PERCENT)
   value       Decimal      @db.Decimal(12, 2)
   seats       Int?
-  criteria    String?
+  criteria    String?      @db.Text
   isActive    Boolean      @default(true)
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
@@ -2097,11 +2119,11 @@ model Scholarship {
 }
 
 model ScholarshipAward {
-  id            String   @id @default(uuid()) @db.Uuid
-  scholarshipId String   @db.Uuid
-  studentId     String   @db.Uuid
+  id            String   @id @default(uuid()) @db.Char(36)
+  scholarshipId String   @db.Char(36)
+  studentId     String   @db.Char(36)
   awardedAt     DateTime @default(now())
-  note          String?
+  note          String?  @db.Text
 
   scholarship Scholarship    @relation(fields: [scholarshipId], references: [id], onDelete: Cascade)
   student     StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
@@ -2116,20 +2138,20 @@ model ScholarshipAward {
 // ─────────────────────────────────────────────────────────────
 
 model Certificate {
-  id                String            @id @default(uuid()) @db.Uuid
+  id                String            @id @default(uuid()) @db.Char(36)
   certificateNumber String            @unique
   verificationCode  String            @unique
-  studentId         String            @db.Uuid
-  courseId          String            @db.Uuid
-  enrollmentId      String            @unique @db.Uuid
-  title             String
+  studentId         String            @db.Char(36)
+  courseId          String            @db.Char(36)
+  enrollmentId      String            @unique @db.Char(36)
+  title             String            @db.Text
   issuedAt          DateTime          @default(now())
   expiresAt         DateTime?
   status            CertificateStatus @default(VALID)
   revokedAt         DateTime?
-  revokedReason     String?
-  signedById        String?           @db.Uuid
-  pdfMediaId        String?           @db.Uuid
+  revokedReason     String?           @db.MediumText
+  signedById        String?           @db.Char(36)
+  pdfMediaId        String?           @db.Char(36)
   metadata          Json?
   isTestData        Boolean           @default(false)
   createdAt         DateTime          @default(now())
@@ -2148,11 +2170,11 @@ model Certificate {
 }
 
 model CertificateVerification {
-  id            String   @id @default(uuid()) @db.Uuid
-  certificateId String   @db.Uuid
+  id            String   @id @default(uuid()) @db.Char(36)
+  certificateId String   @db.Char(36)
   verifiedAt    DateTime @default(now())
-  ip            String?
-  userAgent     String?
+  ip            String?  @db.Text
+  userAgent     String?  @db.Text
 
   certificate Certificate @relation(fields: [certificateId], references: [id], onDelete: Cascade)
 
@@ -2165,15 +2187,15 @@ model CertificateVerification {
 // ─────────────────────────────────────────────────────────────
 
 model Employer {
-  id              String   @id @default(uuid()) @db.Uuid
+  id              String   @id @default(uuid()) @db.Char(36)
   slug            String   @unique
-  name            String
-  website         String?
-  industry        String?
-  city            String?
+  name            String   @db.Text
+  website         String?  @db.Text
+  industry        String?  @db.Text
+  city            String?  @db.Text
   country         String   @default("PK")
-  logoMediaId     String?  @db.Uuid
-  description     String?
+  logoMediaId     String?  @db.Char(36)
+  description     String?  @db.MediumText
   isVerified      Boolean  @default(false)
   isHiringPartner Boolean  @default(false)
   isTestData      Boolean  @default(false)
@@ -2189,10 +2211,10 @@ model Employer {
 }
 
 model EmployerProfile {
-  id         String   @id @default(uuid()) @db.Uuid
-  userId     String   @unique @db.Uuid
-  employerId String   @db.Uuid
-  jobTitle   String?
+  id         String   @id @default(uuid()) @db.Char(36)
+  userId     String   @unique @db.Char(36)
+  employerId String   @db.Char(36)
+  jobTitle   String?  @db.Text
   createdAt  DateTime @default(now())
 
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -2202,13 +2224,13 @@ model EmployerProfile {
 }
 
 model Job {
-  id          String    @id @default(uuid()) @db.Uuid
-  employerId  String    @db.Uuid
+  id          String    @id @default(uuid()) @db.Char(36)
+  employerId  String    @db.Char(36)
   slug        String    @unique
-  title       String
-  description String?
+  title       String    @db.Text
+  description String?   @db.MediumText
   type        JobType   @default(FULL_TIME)
-  location    String?
+  location    String?   @db.Text
   isRemote    Boolean   @default(false)
   salaryMin   Decimal?  @db.Decimal(12, 2)
   salaryMax   Decimal?  @db.Decimal(12, 2)
@@ -2229,15 +2251,15 @@ model Job {
 }
 
 model Internship {
-  id            String    @id @default(uuid()) @db.Uuid
-  employerId    String    @db.Uuid
+  id            String    @id @default(uuid()) @db.Char(36)
+  employerId    String    @db.Char(36)
   slug          String    @unique
-  title         String
-  description   String?
+  title         String    @db.Text
+  description   String?   @db.MediumText
   durationWeeks Int?
   stipend       Decimal?  @db.Decimal(12, 2)
   currency      String    @default("PKR")
-  location      String?
+  location      String?   @db.Text
   isRemote      Boolean   @default(false)
   status        JobStatus @default(DRAFT)
   postedAt      DateTime?
@@ -2255,10 +2277,10 @@ model Internship {
 }
 
 model JobSkill {
-  id           String  @id @default(uuid()) @db.Uuid
-  jobId        String? @db.Uuid
-  internshipId String? @db.Uuid
-  skillId      String  @db.Uuid
+  id           String  @id @default(uuid()) @db.Char(36)
+  jobId        String? @db.Char(36)
+  internshipId String? @db.Char(36)
+  skillId      String  @db.Char(36)
   required     Boolean @default(true)
 
   job        Job?        @relation(fields: [jobId], references: [id], onDelete: Cascade)
@@ -2271,12 +2293,12 @@ model JobSkill {
 }
 
 model JobApplication {
-  id           String               @id @default(uuid()) @db.Uuid
-  studentId    String               @db.Uuid
-  jobId        String?              @db.Uuid
-  internshipId String?              @db.Uuid
-  coverLetter  String?
-  cvMediaId    String?              @db.Uuid
+  id           String               @id @default(uuid()) @db.Char(36)
+  studentId    String               @db.Char(36)
+  jobId        String?              @db.Char(36)
+  internshipId String?              @db.Char(36)
+  coverLetter  String?              @db.Text
+  cvMediaId    String?              @db.Char(36)
   status       JobApplicationStatus @default(APPLIED)
   matchScore   Int?
   createdAt    DateTime             @default(now())
@@ -2293,8 +2315,8 @@ model JobApplication {
 }
 
 model StudentSkill {
-  studentId String  @db.Uuid
-  skillId   String  @db.Uuid
+  studentId String  @db.Char(36)
+  skillId   String  @db.Char(36)
   level     Int     @default(1) // 1-5
   source    String  @default("SELF") // SELF | COURSE | ASSESSED
   verified  Boolean @default(false)
@@ -2307,11 +2329,11 @@ model StudentSkill {
 }
 
 model Portfolio {
-  id               String   @id @default(uuid()) @db.Uuid
-  studentId        String   @unique @db.Uuid
+  id               String   @id @default(uuid()) @db.Char(36)
+  studentId        String   @unique @db.Char(36)
   username         String   @unique
-  headline         String?
-  about            String?
+  headline         String?  @db.Text
+  about            String?  @db.Text
   isPublic         Boolean  @default(false)
   showCertificates Boolean  @default(true)
   showSkills       Boolean  @default(true)
@@ -2326,14 +2348,15 @@ model Portfolio {
 }
 
 model PortfolioProject {
-  id           String   @id @default(uuid()) @db.Uuid
-  portfolioId  String   @db.Uuid
-  title        String
-  description  String?
-  coverMediaId String?  @db.Uuid
-  repoUrl      String?
-  liveUrl      String?
-  skills       String[]
+  id           String   @id @default(uuid()) @db.Char(36)
+  portfolioId  String   @db.Char(36)
+  title        String   @db.Text
+  description  String?  @db.MediumText
+  coverMediaId String?  @db.Char(36)
+  repoUrl      String?  @db.Text
+  liveUrl      String?  @db.Text
+  /// [StringList]
+  skills       Json     @default("[]")
   isVisible    Boolean  @default(true)
   order        Int      @default(0)
   createdAt    DateTime @default(now())
@@ -2352,20 +2375,20 @@ model PortfolioProject {
 // ─────────────────────────────────────────────────────────────
 
 model Page {
-  id             String        @id @default(uuid()) @db.Uuid
+  id             String        @id @default(uuid()) @db.Char(36)
   slug           String        @unique
-  title          String
+  title          String        @db.Text
   locale         String        @default("en")
   status         ContentStatus @default(DRAFT)
   publishedAt    DateTime?
   scheduledAt    DateTime?
-  seoTitle       String?
-  seoDescription String?
-  canonicalUrl   String?
-  ogImageMediaId String?       @db.Uuid
+  seoTitle       String?       @db.Text
+  seoDescription String?       @db.MediumText
+  canonicalUrl   String?       @db.Text
+  ogImageMediaId String?       @db.Char(36)
   noindex        Boolean       @default(false)
   schemaJson     Json?
-  createdById    String?       @db.Uuid
+  createdById    String?       @db.Char(36)
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   deletedAt      DateTime?
@@ -2375,14 +2398,15 @@ model Page {
   sections  PageSection[]
 
   @@index([status])
+  @@fulltext([title, seoDescription])
   @@map("pages")
 }
 
 model PageSection {
-  id        String          @id @default(uuid()) @db.Uuid
-  pageId    String          @db.Uuid
+  id        String          @id @default(uuid()) @db.Char(36)
+  pageId    String          @db.Char(36)
   type      PageSectionType
-  name      String?
+  name      String?         @db.Text
   order     Int             @default(0)
   data      Json
   isVisible Boolean         @default(true)
@@ -2396,9 +2420,9 @@ model PageSection {
 }
 
 model Navigation {
-  id        String   @id @default(uuid()) @db.Uuid
+  id        String   @id @default(uuid()) @db.Char(36)
   key       String   @unique // header | footer-primary | footer-secondary
-  name      String
+  name      String   @db.Text
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -2408,12 +2432,12 @@ model Navigation {
 }
 
 model NavigationItem {
-  id           String  @id @default(uuid()) @db.Uuid
-  navigationId String  @db.Uuid
-  parentId     String? @db.Uuid
-  label        String
-  href         String
-  description  String?
+  id           String  @id @default(uuid()) @db.Char(36)
+  navigationId String  @db.Char(36)
+  parentId     String? @db.Char(36)
+  label        String  @db.Text
+  href         String  @db.Text
+  description  String? @db.MediumText
   order        Int     @default(0)
   openInNewTab Boolean @default(false)
   isVisible    Boolean @default(true)
@@ -2427,10 +2451,10 @@ model NavigationItem {
 }
 
 model BlogCategory {
-  id          String   @id @default(uuid()) @db.Uuid
+  id          String   @id @default(uuid()) @db.Char(36)
   slug        String   @unique
-  name        String
-  description String?
+  name        String   @db.Text
+  description String?  @db.MediumText
   createdAt   DateTime @default(now())
 
   posts BlogPost[]
@@ -2439,9 +2463,9 @@ model BlogCategory {
 }
 
 model BlogTag {
-  id   String @id @default(uuid()) @db.Uuid
+  id   String @id @default(uuid()) @db.Char(36)
   slug String @unique
-  name String
+  name String @db.Text
 
   posts BlogPostTag[]
 
@@ -2449,22 +2473,22 @@ model BlogTag {
 }
 
 model BlogPost {
-  id              String        @id @default(uuid()) @db.Uuid
+  id              String        @id @default(uuid()) @db.Char(36)
   slug            String        @unique
-  title           String
-  excerpt         String?
-  content         String? // sanitized HTML
-  authorId        String?       @db.Uuid
-  categoryId      String?       @db.Uuid
-  featuredMediaId String?       @db.Uuid
+  title           String        @db.Text
+  excerpt         String?       @db.Text
+  content         String?       @db.MediumText // sanitized HTML
+  authorId        String?       @db.Char(36)
+  categoryId      String?       @db.Char(36)
+  featuredMediaId String?       @db.Char(36)
   status          ContentStatus @default(DRAFT)
   publishedAt     DateTime?
   scheduledAt     DateTime?
   readingMinutes  Int?
-  seoTitle        String?
-  seoDescription  String?
-  canonicalUrl    String?
-  ogImageMediaId  String?       @db.Uuid
+  seoTitle        String?       @db.Text
+  seoDescription  String?       @db.MediumText
+  canonicalUrl    String?       @db.Text
+  ogImageMediaId  String?       @db.Char(36)
   noindex         Boolean       @default(false)
   locale          String        @default("en")
   isTestData      Boolean       @default(false)
@@ -2479,12 +2503,13 @@ model BlogPost {
   tags     BlogPostTag[]
 
   @@index([status, publishedAt])
+  @@fulltext([title, excerpt, content])
   @@map("blog_posts")
 }
 
 model BlogPostTag {
-  postId String @db.Uuid
-  tagId  String @db.Uuid
+  postId String @db.Char(36)
+  tagId  String @db.Char(36)
 
   post BlogPost @relation(fields: [postId], references: [id], onDelete: Cascade)
   tag  BlogTag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
@@ -2494,9 +2519,9 @@ model BlogPostTag {
 }
 
 model MediaFolder {
-  id        String   @id @default(uuid()) @db.Uuid
-  name      String
-  parentId  String?  @db.Uuid
+  id        String   @id @default(uuid()) @db.Char(36)
+  name      String   @db.Text
+  parentId  String?  @db.Char(36)
   createdAt DateTime @default(now())
 
   parent   MediaFolder?  @relation("FolderTree", fields: [parentId], references: [id], onDelete: SetNull)
@@ -2507,21 +2532,22 @@ model MediaFolder {
 }
 
 model Media {
-  id              String    @id @default(uuid()) @db.Uuid
-  key             String    @unique // storage object key
-  url             String
+  id              String    @id @default(uuid()) @db.Char(36)
+  key             String    @unique @db.VarChar(512) // storage object key
+  url             String    @db.Text
   kind            MediaKind @default(IMAGE)
-  mime            String
+  mime            String    @db.Text
   size            Int
   width           Int?
   height          Int?
   durationSeconds Int?
-  fileName        String
-  alt             String?
-  caption         String?
-  tags            String[]
-  folderId        String?   @db.Uuid
-  uploadedById    String?   @db.Uuid
+  fileName        String    @db.Text
+  alt             String?   @db.Text
+  caption         String?   @db.Text
+  /// [StringList]
+  tags            Json      @default("[]")
+  folderId        String?   @db.Char(36)
+  uploadedById    String?   @db.Char(36)
   usageCount      Int       @default(0)
   isPublic        Boolean   @default(true)
   metadata        Json?
@@ -2562,18 +2588,18 @@ model Media {
 }
 
 model Event {
-  id           String      @id @default(uuid()) @db.Uuid
+  id           String      @id @default(uuid()) @db.Char(36)
   slug         String      @unique
-  title        String
-  description  String?
+  title        String      @db.Text
+  description  String?     @db.MediumText
   startsAt     DateTime
   endsAt       DateTime?
-  location     String?
+  location     String?     @db.Text
   isOnline     Boolean     @default(false)
-  meetingUrl   String?
+  meetingUrl   String?     @db.Text
   capacity     Int?
-  coverMediaId String?     @db.Uuid
-  campusId     String?     @db.Uuid
+  coverMediaId String?     @db.Char(36)
+  campusId     String?     @db.Char(36)
   status       EventStatus @default(DRAFT)
   isTestData   Boolean     @default(false)
   createdAt    DateTime    @default(now())
@@ -2588,12 +2614,12 @@ model Event {
 }
 
 model EventRegistration {
-  id        String   @id @default(uuid()) @db.Uuid
-  eventId   String   @db.Uuid
-  userId    String?  @db.Uuid
-  name      String
+  id        String   @id @default(uuid()) @db.Char(36)
+  eventId   String   @db.Char(36)
+  userId    String?  @db.Char(36)
+  name      String   @db.Text
   email     String
-  phone     String?
+  phone     String?  @db.Text
   attended  Boolean  @default(false)
   createdAt DateTime @default(now())
 
@@ -2605,15 +2631,15 @@ model EventRegistration {
 }
 
 model Testimonial {
-  id            String   @id @default(uuid()) @db.Uuid
-  name          String
-  role          String?
-  company       String?
-  quote         String
+  id            String   @id @default(uuid()) @db.Char(36)
+  name          String   @db.Text
+  role          String?  @db.Text
+  company       String?  @db.Text
+  quote         String   @db.Text
   rating        Int      @default(5)
-  avatarMediaId String?  @db.Uuid
-  courseTitle   String?
-  outcome       String? // e.g. "Rs 95,000/month"
+  avatarMediaId String?  @db.Char(36)
+  courseTitle   String?  @db.Text
+  outcome       String?  @db.Text // e.g. "Rs 95,000/month"
   isFeatured    Boolean  @default(false)
   isApproved    Boolean  @default(true)
   order         Int      @default(0)
@@ -2627,9 +2653,9 @@ model Testimonial {
 }
 
 model Faq {
-  id        String   @id @default(uuid()) @db.Uuid
-  question  String
-  answer    String
+  id        String   @id @default(uuid()) @db.Char(36)
+  question  String   @db.Text
+  answer    String   @db.MediumText
   group     String   @default("general")
   order     Int      @default(0)
   isVisible Boolean  @default(true)
@@ -2640,14 +2666,14 @@ model Faq {
 }
 
 model SuccessStory {
-  id           String        @id @default(uuid()) @db.Uuid
+  id           String        @id @default(uuid()) @db.Char(36)
   slug         String        @unique
-  name         String
-  headline     String
-  story        String
-  outcome      String?
-  courseTitle  String?
-  coverMediaId String?       @db.Uuid
+  name         String        @db.Text
+  headline     String        @db.Text
+  story        String        @db.Text
+  outcome      String?       @db.Text
+  courseTitle  String?       @db.Text
+  coverMediaId String?       @db.Char(36)
   status       ContentStatus @default(DRAFT)
   publishedAt  DateTime?
   isFeatured   Boolean       @default(false)
@@ -2665,8 +2691,8 @@ model SuccessStory {
 // ─────────────────────────────────────────────────────────────
 
 model Conversation {
-  id            String    @id @default(uuid()) @db.Uuid
-  title         String?
+  id            String    @id @default(uuid()) @db.Char(36)
+  title         String?   @db.Text
   isGroup       Boolean   @default(false)
   lastMessageAt DateTime?
   createdAt     DateTime  @default(now())
@@ -2680,8 +2706,8 @@ model Conversation {
 }
 
 model ConversationParticipant {
-  conversationId String    @db.Uuid
-  userId         String    @db.Uuid
+  conversationId String    @db.Char(36)
+  userId         String    @db.Char(36)
   joinedAt       DateTime  @default(now())
   lastReadAt     DateTime?
   isMuted        Boolean   @default(false)
@@ -2695,11 +2721,11 @@ model ConversationParticipant {
 }
 
 model Message {
-  id             String    @id @default(uuid()) @db.Uuid
-  conversationId String    @db.Uuid
-  senderId       String    @db.Uuid
-  body           String
-  attachmentId   String?   @db.Uuid
+  id             String    @id @default(uuid()) @db.Char(36)
+  conversationId String    @db.Char(36)
+  senderId       String    @db.Char(36)
+  body           String    @db.MediumText
+  attachmentId   String?   @db.Char(36)
   editedAt       DateTime?
   deletedAt      DateTime?
   createdAt      DateTime  @default(now())
@@ -2713,14 +2739,14 @@ model Message {
 }
 
 model Discussion {
-  id          String    @id @default(uuid()) @db.Uuid
-  courseId    String?   @db.Uuid
-  batchId     String?   @db.Uuid
-  lessonId    String?   @db.Uuid
-  groupId     String?   @db.Uuid
-  authorId    String    @db.Uuid
-  title       String
-  body        String
+  id          String    @id @default(uuid()) @db.Char(36)
+  courseId    String?   @db.Char(36)
+  batchId     String?   @db.Char(36)
+  lessonId    String?   @db.Char(36)
+  groupId     String?   @db.Char(36)
+  authorId    String    @db.Char(36)
+  title       String    @db.Text
+  body        String    @db.MediumText
   isQuestion  Boolean   @default(false)
   isResolved  Boolean   @default(false)
   isPinned    Boolean   @default(false)
@@ -2743,15 +2769,16 @@ model Discussion {
   @@index([courseId, createdAt])
   @@index([batchId, createdAt])
   @@index([lessonId])
+  @@fulltext([title, body])
   @@map("discussions")
 }
 
 model DiscussionReply {
-  id           String    @id @default(uuid()) @db.Uuid
-  discussionId String    @db.Uuid
-  authorId     String    @db.Uuid
-  parentId     String?   @db.Uuid
-  body         String
+  id           String    @id @default(uuid()) @db.Char(36)
+  discussionId String    @db.Char(36)
+  authorId     String    @db.Char(36)
+  parentId     String?   @db.Char(36)
+  body         String    @db.MediumText
   isAccepted   Boolean   @default(false)
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
@@ -2769,10 +2796,10 @@ model DiscussionReply {
 }
 
 model Reaction {
-  id           String   @id @default(uuid()) @db.Uuid
-  userId       String   @db.Uuid
-  discussionId String?  @db.Uuid
-  replyId      String?  @db.Uuid
+  id           String   @id @default(uuid()) @db.Char(36)
+  userId       String   @db.Char(36)
+  discussionId String?  @db.Char(36)
+  replyId      String?  @db.Char(36)
   emoji        String   @default("👍")
   createdAt    DateTime @default(now())
 
@@ -2785,12 +2812,12 @@ model Reaction {
 }
 
 model Announcement {
-  id          String    @id @default(uuid()) @db.Uuid
-  authorId    String    @db.Uuid
-  courseId    String?   @db.Uuid
-  batchId     String?   @db.Uuid
-  title       String
-  body        String
+  id          String    @id @default(uuid()) @db.Char(36)
+  authorId    String    @db.Char(36)
+  courseId    String?   @db.Char(36)
+  batchId     String?   @db.Char(36)
+  title       String    @db.Text
+  body        String    @db.MediumText
   isPinned    Boolean   @default(false)
   publishedAt DateTime  @default(now())
   expiresAt   DateTime?
@@ -2807,10 +2834,10 @@ model Announcement {
 }
 
 model Group {
-  id          String   @id @default(uuid()) @db.Uuid
+  id          String   @id @default(uuid()) @db.Char(36)
   slug        String   @unique
-  name        String
-  description String?
+  name        String   @db.Text
+  description String?  @db.MediumText
   isPrivate   Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -2822,8 +2849,8 @@ model Group {
 }
 
 model GroupMember {
-  groupId  String   @db.Uuid
-  userId   String   @db.Uuid
+  groupId  String   @db.Char(36)
+  userId   String   @db.Char(36)
   role     String   @default("MEMBER") // MEMBER | MODERATOR
   joinedAt DateTime @default(now())
 
@@ -2835,13 +2862,13 @@ model GroupMember {
 }
 
 model Report {
-  id           String       @id @default(uuid()) @db.Uuid
-  reporterId   String       @db.Uuid
-  discussionId String?      @db.Uuid
-  replyId      String?      @db.Uuid
-  reason       String
+  id           String       @id @default(uuid()) @db.Char(36)
+  reporterId   String       @db.Char(36)
+  discussionId String?      @db.Char(36)
+  replyId      String?      @db.Char(36)
+  reason       String       @db.MediumText
   status       ReportStatus @default(OPEN)
-  resolvedById String?      @db.Uuid
+  resolvedById String?      @db.Char(36)
   resolvedAt   DateTime?
   createdAt    DateTime     @default(now())
 
@@ -2858,14 +2885,14 @@ model Report {
 // ─────────────────────────────────────────────────────────────
 
 model AIConversation {
-  id          String        @id @default(uuid()) @db.Uuid
-  userId      String        @db.Uuid
+  id          String        @id @default(uuid()) @db.Char(36)
+  userId      String        @db.Char(36)
   contextType AIContextType @default(GENERAL)
-  courseId    String?       @db.Uuid
-  lessonId    String?       @db.Uuid
-  title       String?
-  provider    String?
-  model       String?
+  courseId    String?       @db.Char(36)
+  lessonId    String?       @db.Char(36)
+  title       String?       @db.Text
+  provider    String?       @db.Text
+  model       String?       @db.Text
   tokensUsed  Int           @default(0)
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
@@ -2879,10 +2906,10 @@ model AIConversation {
 }
 
 model AIMessage {
-  id             String   @id @default(uuid()) @db.Uuid
-  conversationId String   @db.Uuid
+  id             String   @id @default(uuid()) @db.Char(36)
+  conversationId String   @db.Char(36)
   role           AIRole
-  content        String
+  content        String   @db.MediumText
   toolCalls      Json?
   tokens         Int?
   createdAt      DateTime @default(now())
@@ -2894,16 +2921,16 @@ model AIMessage {
 }
 
 model AIGeneration {
-  id            String             @id @default(uuid()) @db.Uuid
+  id            String             @id @default(uuid()) @db.Char(36)
   kind          String // COURSE_OUTLINE | QUIZ | ASSIGNMENT | PROJECT | LESSON_SUMMARY | CLASS_SUMMARY | REPORT
-  requestedById String             @db.Uuid
-  courseId      String?            @db.Uuid
+  requestedById String             @db.Char(36)
+  courseId      String?            @db.Char(36)
   input         Json
   output        Json
-  provider      String?
-  model         String?
+  provider      String?            @db.Text
+  model         String?            @db.Text
   status        AIGenerationStatus @default(DRAFT)
-  approvedById  String?            @db.Uuid
+  approvedById  String?            @db.Char(36)
   approvedAt    DateTime?
   appliedAt     DateTime?
   createdAt     DateTime           @default(now())
@@ -2918,16 +2945,17 @@ model AIGeneration {
 }
 
 model StudentRiskScore {
-  id               String    @id @default(uuid()) @db.Uuid
-  studentId        String    @db.Uuid
-  enrollmentId     String?   @db.Uuid
+  id               String    @id @default(uuid()) @db.Char(36)
+  studentId        String    @db.Char(36)
+  enrollmentId     String?   @db.Char(36)
   score            Int
   level            RiskLevel
-  reasons          String[]
-  recommendation   String?
+  /// [StringList]
+  reasons          Json      @default("[]")
+  recommendation   String?   @db.Text
   signals          Json
   computedAt       DateTime  @default(now())
-  acknowledgedById String?   @db.Uuid
+  acknowledgedById String?   @db.Char(36)
   acknowledgedAt   DateTime?
 
   student StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
@@ -2942,12 +2970,12 @@ model StudentRiskScore {
 // ─────────────────────────────────────────────────────────────
 
 model NotificationTemplate {
-  id        String              @id @default(uuid()) @db.Uuid
+  id        String              @id @default(uuid()) @db.Char(36)
   event     NotificationEvent
   channel   NotificationChannel
   locale    String              @default("en")
-  subject   String?
-  body      String // handlebars-style {{placeholders}}
+  subject   String?             @db.Text
+  body      String              @db.MediumText // handlebars-style {{placeholders}}
   isActive  Boolean             @default(true)
   updatedAt DateTime            @updatedAt
   createdAt DateTime            @default(now())
@@ -2957,18 +2985,18 @@ model NotificationTemplate {
 }
 
 model Notification {
-  id        String              @id @default(uuid()) @db.Uuid
-  userId    String              @db.Uuid
+  id        String              @id @default(uuid()) @db.Char(36)
+  userId    String              @db.Char(36)
   event     NotificationEvent
   channel   NotificationChannel @default(IN_APP)
-  title     String
-  body      String
-  href      String?
+  title     String              @db.Text
+  body      String              @db.MediumText
+  href      String?             @db.Text
   data      Json?
   status    NotificationStatus  @default(QUEUED)
   sentAt    DateTime?
   readAt    DateTime?
-  error     String?
+  error     String?             @db.MediumText
   createdAt DateTime            @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -2979,17 +3007,18 @@ model Notification {
 }
 
 model AuditLog {
-  id         String   @id @default(uuid()) @db.Uuid
-  actorId    String?  @db.Uuid
-  actorRoles String[]
-  action     String
+  id         String   @id @default(uuid()) @db.Char(36)
+  actorId    String?  @db.Char(36)
+  /// [StringList]
+  actorRoles Json     @default("[]")
+  action     String   @db.Text
   entityType String
   entityId   String?
   before     Json?
   after      Json?
-  ip         String?
-  userAgent  String?
-  requestId  String?
+  ip         String?  @db.Text
+  userAgent  String?  @db.Text
+  requestId  String?  @db.Text
   createdAt  DateTime @default(now())
 
   actor User? @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
@@ -3004,8 +3033,8 @@ model Setting {
   key         String   @id
   value       Json
   group       String   @default("general")
-  description String?
-  updatedById String?  @db.Uuid
+  description String?  @db.MediumText
+  updatedById String?  @db.Char(36)
   updatedAt   DateTime @updatedAt
 
   updatedBy User? @relation(fields: [updatedById], references: [id], onDelete: SetNull)
@@ -3014,10 +3043,10 @@ model Setting {
 }
 
 model Badge {
-  id          String   @id @default(uuid()) @db.Uuid
+  id          String   @id @default(uuid()) @db.Char(36)
   key         String   @unique // FIRST_LESSON | STREAK_7 | QUIZ_MASTER ...
-  name        String
-  description String?
+  name        String   @db.Text
+  description String?  @db.MediumText
   icon        String   @default("award")
   createdAt   DateTime @default(now())
 
@@ -3027,8 +3056,8 @@ model Badge {
 }
 
 model UserBadge {
-  userId    String   @db.Uuid
-  badgeId   String   @db.Uuid
+  userId    String   @db.Char(36)
+  badgeId   String   @db.Char(36)
   awardedAt DateTime @default(now())
   context   Json?
 
@@ -3040,7 +3069,7 @@ model UserBadge {
 }
 
 model Streak {
-  userId         String    @id @db.Uuid
+  userId         String    @id @db.Char(36)
   current        Int       @default(0)
   longest        Int       @default(0)
   lastActiveDate DateTime? @db.Date
@@ -3052,13 +3081,13 @@ model Streak {
 }
 
 model WebhookEvent {
-  id              String    @id @default(uuid()) @db.Uuid
+  id              String    @id @default(uuid()) @db.Char(36)
   provider        String
   providerEventId String
-  type            String
+  type            String    @db.Text
   payload         Json
   processedAt     DateTime?
-  error           String?
+  error           String?   @db.MediumText
   createdAt       DateTime  @default(now())
 
   @@unique([provider, providerEventId])
@@ -3066,8 +3095,8 @@ model WebhookEvent {
 }
 
 model LearningActivity {
-  id        String   @id @default(uuid()) @db.Uuid
-  userId    String   @db.Uuid
+  id        String   @id @default(uuid()) @db.Char(36)
+  userId    String   @db.Char(36)
   date      DateTime @db.Date
   seconds   Int      @default(0)
   lessons   Int      @default(0)
@@ -3087,11 +3116,11 @@ enum DevicePlatform {
 /// A phone that can receive push notifications (FCM registration token).
 /// userId is null for a guest: the app is installed but nobody is signed in.
 model DeviceToken {
-  id         String         @id @default(uuid()) @db.Uuid
-  userId     String?        @db.Uuid
-  token      String         @unique
+  id         String         @id @default(uuid()) @db.Char(36)
+  userId     String?        @db.Char(36)
+  token      String         @unique @db.VarChar(512)
   platform   DevicePlatform
-  appVersion String?
+  appVersion String?        @db.Text
   lastSeenAt DateTime       @default(now())
   createdAt  DateTime       @default(now())
 
@@ -3110,14 +3139,14 @@ enum ReferralStatus {
 /// A friend who signed up with a student's referral code. The friend gets a
 /// welcome discount at sign-up; the referrer is rewarded when the friend enrols.
 model Referral {
-  id                 String         @id @default(uuid()) @db.Uuid
-  referrerId         String         @db.Uuid
-  refereeUserId      String         @unique @db.Uuid
-  code               String
+  id                 String         @id @default(uuid()) @db.Char(36)
+  referrerId         String         @db.Char(36)
+  refereeUserId      String         @unique @db.Char(36)
+  code               String         @db.Text
   status             ReferralStatus @default(SIGNED_UP)
-  friendDiscountId   String?        @unique @db.Uuid
-  referrerDiscountId String?        @unique @db.Uuid
-  enrollmentId       String?        @db.Uuid
+  friendDiscountId   String?        @unique @db.Char(36)
+  referrerDiscountId String?        @unique @db.Char(36)
+  enrollmentId       String?        @db.Char(36)
   rewardedAt         DateTime?
   createdAt          DateTime       @default(now())
 

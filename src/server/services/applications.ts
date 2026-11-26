@@ -69,7 +69,7 @@ export async function listApplications(filters: ApplicationFilters) {
     NOT: { status: "DRAFT" },
     ...(filters.status ? { status: filters.status } : {}),
     ...(filters.courseId ? { courseId: filters.courseId } : {}),
-    ...(filters.q ? { OR: [{ number: { contains: filters.q, mode: "insensitive" } }, { personal: { path: ["firstName"], string_contains: filters.q } }, { personal: { path: ["lastName"], string_contains: filters.q } }, { personal: { path: ["email"], string_contains: filters.q } }] } : {}),
+    ...(filters.q ? { OR: [{ number: { contains: filters.q } }, { personal: { path: "$.firstName", string_contains: filters.q } }, { personal: { path: "$.lastName", string_contains: filters.q } }, { personal: { path: "$.email", string_contains: filters.q } }] } : {}),
   };
   const [items, total] = await Promise.all([
     prisma.application.findMany({ where, orderBy: [{ submittedAt: "desc" }], skip: (page - 1) * pageSize, take: pageSize, include: { course: { select: { id: true, title: true } }, preferredBatch: { select: { code: true } }, reviewedBy: { select: { name: true } }, applicant: { select: { id: true, name: true, email: true } } } }),

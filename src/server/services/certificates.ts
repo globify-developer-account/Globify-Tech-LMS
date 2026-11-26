@@ -155,7 +155,7 @@ export async function listCertificates(filters: { q?: string; status?: "VALID" |
   const where: Prisma.CertificateWhereInput = {
     ...(filters.status ? { status: filters.status } : {}),
     ...(filters.courseId ? { courseId: filters.courseId } : {}),
-    ...(filters.q ? { OR: [{ certificateNumber: { contains: filters.q, mode: "insensitive" } }, { student: { user: { name: { contains: filters.q, mode: "insensitive" } } } }] } : {}),
+    ...(filters.q ? { OR: [{ certificateNumber: { contains: filters.q } }, { student: { user: { name: { contains: filters.q } } } }] } : {}),
   };
   const [items, total] = await Promise.all([
     prisma.certificate.findMany({ where, orderBy: { issuedAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize, include: { student: { select: { id: true, studentNumber: true, user: { select: { name: true, email: true } } } }, course: { select: { title: true } }, pdf: { select: { url: true } }, _count: { select: { verifications: true } } } }),

@@ -77,7 +77,7 @@ export async function sendUpcomingClassReminders() {
   const now = Date.now();
   const classes = await prisma.liveClass.findMany({ where: { status: "SCHEDULED", startsAt: { gte: new Date(now), lte: new Date(now + 60 * 60 * 1000) } }, select: { id: true, notes: true } });
   for (const c of classes) {
-    const already = await prisma.notification.findFirst({ where: { event: "CLASS_REMINDER", data: { path: ["liveClassId"], equals: c.id } } });
+    const already = await prisma.notification.findFirst({ where: { event: "CLASS_REMINDER", data: { path: "$.liveClassId", equals: c.id } } });
     if (already) continue;
     await notifyBatch(c.id, "reminder");
   }

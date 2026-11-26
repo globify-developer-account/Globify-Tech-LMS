@@ -18,7 +18,7 @@ export default async function LessonsPage({ searchParams }: { searchParams: Prom
   const scope = await instructorScope(user);
   const page = Number(sp.page ?? 1) || 1;
   const pageSize = 30;
-  const where = { unit: { module: { course: { deletedAt: null, ...scope.courseWhere } } }, ...(sp.q ? { title: { contains: sp.q, mode: "insensitive" as const } } : {}) };
+  const where = { unit: { module: { course: { deletedAt: null, ...scope.courseWhere } } }, ...(sp.q ? { title: { contains: sp.q } } : {}) };
   const [lessons, total] = await Promise.all([
     prisma.lesson.findMany({ where, orderBy: { updatedAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize, select: { id: true, title: true, type: true, durationSeconds: true, isPublished: true, isPreview: true, unit: { select: { title: true, module: { select: { title: true, course: { select: { id: true, title: true } } } } } }, _count: { select: { progress: { where: { status: "COMPLETED" } } } } } }),
     prisma.lesson.count({ where }),

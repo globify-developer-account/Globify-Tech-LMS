@@ -22,7 +22,7 @@ export default async function AlumniPage({ searchParams }: { searchParams: Promi
   const pageSize = 25;
   const where = {
     enrollments: { some: { status: "COMPLETED" as const, ...(sp.course ? { courseId: sp.course } : {}) } },
-    ...(sp.q ? { user: { OR: [{ name: { contains: sp.q, mode: "insensitive" as const } }, { email: { contains: sp.q, mode: "insensitive" as const } }] } } : {}),
+    ...(sp.q ? { user: { OR: [{ name: { contains: sp.q } }, { email: { contains: sp.q } }] } } : {}),
   };
   const [items, total, courses, hired, certificates] = await Promise.all([
     prisma.studentProfile.findMany({

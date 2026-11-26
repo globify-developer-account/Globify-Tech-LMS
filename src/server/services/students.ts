@@ -12,8 +12,8 @@ export async function listStudents(filters: { q?: string; campusId?: string; cou
   const where: Prisma.StudentProfileWhereInput = {
     ...(filters.campusId ? { campusId: filters.campusId } : {}),
     ...(filters.courseId ? { enrollments: { some: { courseId: filters.courseId } } } : {}),
-    user: { deletedAt: null, ...(filters.status ? { status: filters.status } : {}), ...(filters.q ? { OR: [{ name: { contains: filters.q, mode: "insensitive" } }, { email: { contains: filters.q, mode: "insensitive" } }, { phone: { contains: filters.q } }] } : {}) },
-    ...(filters.q ? { OR: [{ studentNumber: { contains: filters.q, mode: "insensitive" } }, { user: { OR: [{ name: { contains: filters.q, mode: "insensitive" } }, { email: { contains: filters.q, mode: "insensitive" } }] } }] } : {}),
+    user: { deletedAt: null, ...(filters.status ? { status: filters.status } : {}), ...(filters.q ? { OR: [{ name: { contains: filters.q } }, { email: { contains: filters.q } }, { phone: { contains: filters.q } }] } : {}) },
+    ...(filters.q ? { OR: [{ studentNumber: { contains: filters.q } }, { user: { OR: [{ name: { contains: filters.q } }, { email: { contains: filters.q } }] } }] } : {}),
   };
   const [items, total] = await Promise.all([
     prisma.studentProfile.findMany({ where, orderBy: { createdAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize, include: { user: { select: { id: true, name: true, email: true, phone: true, status: true, lastLoginAt: true, avatar: { select: { url: true } } } }, campus: { select: { name: true } }, enrollments: { where: { status: { in: ["ACTIVE", "COMPLETED"] } }, select: { course: { select: { title: true } }, status: true, progress: { select: { percent: true } } } }, riskScores: { orderBy: { computedAt: "desc" }, take: 1, select: { level: true, score: true } } } }),

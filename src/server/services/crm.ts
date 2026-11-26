@@ -127,7 +127,7 @@ export async function listLeads(filters: LeadFilters) {
   const pageSize = filters.pageSize ?? 25;
   const where: Prisma.LeadWhereInput = {
     deletedAt: null,
-    ...(filters.q ? { OR: [{ name: { contains: filters.q, mode: "insensitive" } }, { phone: { contains: filters.q } }, { email: { contains: filters.q, mode: "insensitive" } }, { city: { contains: filters.q, mode: "insensitive" } }] } : {}),
+    ...(filters.q ? { OR: [{ name: { contains: filters.q } }, { phone: { contains: filters.q } }, { email: { contains: filters.q } }, { city: { contains: filters.q } }] } : {}),
     ...(filters.stage ? { stage: filters.stage } : {}),
     ...(filters.source ? { source: filters.source as never } : {}),
     ...(filters.counsellorId ? { counsellorId: filters.counsellorId } : {}),

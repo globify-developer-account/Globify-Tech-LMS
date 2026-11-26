@@ -4,7 +4,7 @@
 
 ```
                     ┌──────────────┐
-  Users ── CDN ───► │ Next.js app  │ ──► PostgreSQL (managed, PITR)
+  Users ── CDN ───► │ Next.js app  │ ──► MySQL / MariaDB (Hostinger)
                     │ (2+ replicas)│ ──► Redis (rate limit, queues)
                     └──────┬───────┘ ──► S3-compatible storage (media, PDFs)
                            │
@@ -37,7 +37,7 @@ Copy `.env.example` → `.env` and fill in real values. Never commit `.env`.
 ```bash
 pnpm install
 cp .env.example .env            # set DATABASE_URL
-docker compose up -d            # Postgres 16 + Redis + MinIO (docker-compose.yml)
+docker compose up -d            # MariaDB 11.8 + Redis (docker-compose.yml)
 pnpm db:migrate                 # applies prisma/migrations
 pnpm db:seed                    # realistic fictional data (clearly marked)
 pnpm dev                        # http://localhost:3000
@@ -61,11 +61,11 @@ pnpm db:deploy     # migrations
 pnpm start
 ```
 
-Docker: `Dockerfile` builds a standalone Next.js image; `docker-compose.prod.yml` shows app + worker + Postgres + Redis + MinIO.
+Docker: `Dockerfile` builds a standalone Next.js image; `docker-compose.prod.yml` shows app + worker + MariaDB + Redis + MinIO.
 
 ## Backups
 
-- Database: nightly `pg_dump -Fc` uploaded to the backup bucket (`scripts/backup-db.sh`), 30-day retention, plus provider PITR.
+- Database: nightly gzipped `mysqldump` (schema, data and triggers) uploaded to the backup bucket (`scripts/backup-db.sh`), 30-day retention, plus Hostinger's own daily backups.
 - Media: bucket versioning + lifecycle rules; weekly sync to a second region.
 - Restore drill: `scripts/restore-db.sh <dump>` into a scratch database, then run `pnpm test:smoke`.
 - Monitoring: the backup job posts to `/api/internal/backup-heartbeat`; if no heartbeat within 26h, an admin alert notification is created and emailed.

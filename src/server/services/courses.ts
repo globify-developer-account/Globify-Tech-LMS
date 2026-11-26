@@ -55,7 +55,7 @@ export async function listPublishedCourses(filters: CatalogFilters = {}) {
   const where: Prisma.CourseWhereInput = {
     status: "PUBLISHED",
     deletedAt: null,
-    ...(filters.q ? { OR: [{ title: { contains: filters.q, mode: "insensitive" } }, { subtitle: { contains: filters.q, mode: "insensitive" } }, { shortDescription: { contains: filters.q, mode: "insensitive" } }, { skills: { some: { skill: { name: { contains: filters.q, mode: "insensitive" } } } } }] } : {}),
+    ...(filters.q ? { OR: [{ title: { contains: filters.q } }, { subtitle: { contains: filters.q } }, { shortDescription: { contains: filters.q } }, { skills: { some: { skill: { name: { contains: filters.q } } } } }] } : {}),
     ...(filters.category ? { category: { slug: filters.category } } : {}),
     ...(filters.skill ? { skills: { some: { skill: { slug: filters.skill } } } } : {}),
     ...(filters.level ? { level: filters.level } : {}),
@@ -131,7 +131,7 @@ export interface AdminCourseFilters extends ListQuery {
 export async function listCoursesForStaff(filters: AdminCourseFilters) {
   const where: Prisma.CourseWhereInput = {
     deletedAt: null,
-    ...(filters.q ? { OR: [{ title: { contains: filters.q, mode: "insensitive" } }, { slug: { contains: filters.q, mode: "insensitive" } }] } : {}),
+    ...(filters.q ? { OR: [{ title: { contains: filters.q } }, { slug: { contains: filters.q } }] } : {}),
     ...(filters.status ? { status: filters.status } : {}),
     ...(filters.categoryId ? { categoryId: filters.categoryId } : {}),
     ...(filters.instructorId ? { instructors: { some: { instructorId: filters.instructorId } } } : {}),

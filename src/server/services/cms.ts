@@ -21,7 +21,7 @@ export const getPublishedPage = unstable_cache(
 );
 
 export async function listPages(filters: { q?: string; status?: ContentStatus }) {
-  return prisma.page.findMany({ where: { deletedAt: null, ...(filters.status ? { status: filters.status } : {}), ...(filters.q ? { OR: [{ title: { contains: filters.q, mode: "insensitive" } }, { slug: { contains: filters.q, mode: "insensitive" } }] } : {}) }, orderBy: { updatedAt: "desc" }, include: { _count: { select: { sections: true } }, createdBy: { select: { name: true } } } });
+  return prisma.page.findMany({ where: { deletedAt: null, ...(filters.status ? { status: filters.status } : {}), ...(filters.q ? { OR: [{ title: { contains: filters.q } }, { slug: { contains: filters.q } }] } : {}) }, orderBy: { updatedAt: "desc" }, include: { _count: { select: { sections: true } }, createdBy: { select: { name: true } } } });
 }
 
 export async function getPageForEditing(id: string) {
@@ -170,7 +170,7 @@ export const BLOG_CARD_SELECT = { id: true, slug: true, title: true, excerpt: tr
 export async function listPublishedPosts(params: { page?: number; pageSize?: number; category?: string; tag?: string; q?: string }) {
   const page = params.page ?? 1;
   const pageSize = params.pageSize ?? 9;
-  const where: Prisma.BlogPostWhereInput = { status: "PUBLISHED", deletedAt: null, ...(params.category ? { category: { slug: params.category } } : {}), ...(params.tag ? { tags: { some: { tag: { slug: params.tag } } } } : {}), ...(params.q ? { OR: [{ title: { contains: params.q, mode: "insensitive" } }, { excerpt: { contains: params.q, mode: "insensitive" } }] } : {}) };
+  const where: Prisma.BlogPostWhereInput = { status: "PUBLISHED", deletedAt: null, ...(params.category ? { category: { slug: params.category } } : {}), ...(params.tag ? { tags: { some: { tag: { slug: params.tag } } } } : {}), ...(params.q ? { OR: [{ title: { contains: params.q } }, { excerpt: { contains: params.q } }] } : {}) };
   const [items, total] = await Promise.all([prisma.blogPost.findMany({ where, orderBy: { publishedAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize, select: BLOG_CARD_SELECT }), prisma.blogPost.count({ where })]);
   return { items, total, page, pageSize };
 }
@@ -184,7 +184,7 @@ export async function getPublishedPost(slug: string) {
 export async function listPostsForStaff(filters: { q?: string; status?: ContentStatus; page?: number; pageSize?: number }) {
   const page = filters.page ?? 1;
   const pageSize = filters.pageSize ?? 20;
-  const where: Prisma.BlogPostWhereInput = { deletedAt: null, ...(filters.status ? { status: filters.status } : {}), ...(filters.q ? { title: { contains: filters.q, mode: "insensitive" } } : {}) };
+  const where: Prisma.BlogPostWhereInput = { deletedAt: null, ...(filters.status ? { status: filters.status } : {}), ...(filters.q ? { title: { contains: filters.q } } : {}) };
   const [items, total] = await Promise.all([prisma.blogPost.findMany({ where, orderBy: { updatedAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize, include: { author: { select: { name: true } }, category: true } }), prisma.blogPost.count({ where })]);
   return { items, total, page, pageSize };
 }

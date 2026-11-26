@@ -91,7 +91,7 @@ export async function feedForStudent(studentId: string, params: { courseId?: str
   ]);
   const where: Prisma.DiscussionWhereInput = {
     deletedAt: null,
-    ...(params.q ? { OR: [{ title: { contains: params.q, mode: "insensitive" } }, { body: { contains: params.q, mode: "insensitive" } }] } : {}),
+    ...(params.q ? { OR: [{ title: { contains: params.q } }, { body: { contains: params.q } }] } : {}),
     ...(params.courseId ? { courseId: params.courseId } : params.batchId ? { batchId: params.batchId } : { OR: [{ courseId: { in: enrollments.map((e) => e.courseId) } }, { batchId: { in: memberships.map((m) => m.batchId) } }, { groupId: { in: groups?.user.groupMemberships.map((g) => g.groupId) ?? [] } }, { group: { isPrivate: false } }] }),
   };
   const [items, total] = await Promise.all([

@@ -14,7 +14,7 @@ export default async function ExamsPage({ searchParams }: { searchParams: Promis
   const [sp] = await Promise.all([searchParams, requirePermission("assessments.manage")]);
   const [exams, courses] = await Promise.all([
     prisma.exam.findMany({
-      where: { ...(sp.course ? { courseId: sp.course } : {}), ...(sp.q ? { title: { contains: sp.q, mode: "insensitive" } } : {}), course: { deletedAt: null } },
+      where: { ...(sp.course ? { courseId: sp.course } : {}), ...(sp.q ? { title: { contains: sp.q } } : {}), course: { deletedAt: null } },
       orderBy: { scheduledAt: "desc" },
       include: { course: { select: { id: true, title: true } }, batch: { select: { code: true } }, _count: { select: { questions: true } }, attempts: { where: { status: "GRADED" }, select: { percent: true, passed: true } } },
     }),

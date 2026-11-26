@@ -15,7 +15,7 @@ export default async function InternshipsPage({ searchParams }: { searchParams: 
   const [sp] = await Promise.all([searchParams, requirePermission("career.jobs.manage")]);
   const [internships, employers, skills] = await Promise.all([
     prisma.internship.findMany({
-      where: { ...(sp.status ? { status: sp.status as "OPEN" } : {}), ...(sp.q ? { OR: [{ title: { contains: sp.q, mode: "insensitive" } }, { employer: { name: { contains: sp.q, mode: "insensitive" } } }] } : {}) },
+      where: { ...(sp.status ? { status: sp.status as "OPEN" } : {}), ...(sp.q ? { OR: [{ title: { contains: sp.q } }, { employer: { name: { contains: sp.q } } }] } : {}) },
       orderBy: { createdAt: "desc" },
       include: { employer: { select: { id: true, name: true } }, skills: { include: { skill: { select: { id: true, name: true } } } }, applications: { select: { id: true, status: true, matchScore: true, student: { select: { id: true, user: { select: { name: true } } } } } } },
     }),

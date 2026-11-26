@@ -48,7 +48,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   ]);
   const e = env();
   const integrations = [
-    { name: "Database", ok: true, detail: "PostgreSQL via Prisma" },
+    { name: "Database", ok: true, detail: "MySQL / MariaDB via Prisma" },
     { name: "Email", ok: e.EMAIL_DRIVER !== "console", detail: e.EMAIL_DRIVER },
     { name: "WhatsApp", ok: e.WHATSAPP_DRIVER !== "console", detail: e.WHATSAPP_DRIVER },
     { name: "SMS", ok: e.SMS_DRIVER !== "console", detail: e.SMS_DRIVER },

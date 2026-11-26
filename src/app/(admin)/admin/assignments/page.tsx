@@ -14,7 +14,7 @@ export default async function AssignmentsPage({ searchParams }: { searchParams: 
   const [sp] = await Promise.all([searchParams, requirePermission("assessments.manage")]);
   const [assignments, courses] = await Promise.all([
     prisma.assignment.findMany({
-      where: { ...(sp.course ? { courseId: sp.course } : {}), ...(sp.q ? { title: { contains: sp.q, mode: "insensitive" } } : {}), course: { deletedAt: null } },
+      where: { ...(sp.course ? { courseId: sp.course } : {}), ...(sp.q ? { title: { contains: sp.q } } : {}), course: { deletedAt: null } },
       orderBy: { createdAt: "desc" },
       include: { course: { select: { id: true, title: true } }, submissions: { select: { status: true, score: true } } },
     }),

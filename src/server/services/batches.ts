@@ -32,7 +32,7 @@ export async function listBatches(filters: { q?: string; courseId?: string; camp
   const pageSize = filters.pageSize ?? 20;
   const where: Prisma.BatchWhereInput = {
     deletedAt: null,
-    ...(filters.q ? { OR: [{ code: { contains: filters.q, mode: "insensitive" } }, { name: { contains: filters.q, mode: "insensitive" } }] } : {}),
+    ...(filters.q ? { OR: [{ code: { contains: filters.q } }, { name: { contains: filters.q } }] } : {}),
     ...(filters.courseId ? { courseId: filters.courseId } : {}),
     ...(filters.campusId ? { campusId: filters.campusId } : {}),
     ...(filters.instructorId ? { instructorId: filters.instructorId } : {}),

@@ -9,7 +9,7 @@ Phases follow the build order in the master brief. Status reflects what is in th
 | `pnpm typecheck` | Passes |
 | `pnpm lint` | 0 errors, 3 warnings from React Hook Form and TanStack Table |
 | `pnpm test` | 122 tests pass across 7 files |
-| `pnpm test:db` | 18 integration tests pass against a real PostgreSQL |
+| `pnpm test:db` | Integration tests against a real MySQL / MariaDB (needs a throwaway seeded database) |
 | `pnpm build` | Passes; 180 routes, 35 prerendered |
 | Migrations | Both apply from an empty database |
 | Seed | Runs end to end and is idempotent |
@@ -50,8 +50,6 @@ These are real limitations, not oversights. They are listed so nobody discovers 
 **AI features need a provider key.** Without one, the tutor, course builder and admin assistant show a clear "not configured" state rather than failing. That is deliberate, but it means those features are unproven against a live model in this repository.
 
 **Exams have no proctoring.** Attempts are timed, shuffled and logged, but nothing prevents a student opening another window.
-
-**The embedded PostgreSQL is for development only.** It keeps a single session, so Prisma needs `pgbouncer=true`, and a long-running session can accumulate prepared statements until it is restarted. Use a real PostgreSQL anywhere that matters.
 
 **No end-to-end browser tests.** Pages were verified by signing in and requesting every route, and the engines are unit tested, but there is no Playwright suite driving the interface.
 

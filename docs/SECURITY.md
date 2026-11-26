@@ -32,7 +32,7 @@ The platform stores personal data (students, applicants), financial records, cre
 - Secrets: only in environment variables, validated at boot by `src/config/env.ts`; client bundle only receives `NEXT_PUBLIC_*`.
 
 ### Data
-- Sensitive fields (`Application.personal`, payment provider refs) are stored encrypted at rest at the database/disk level (managed Postgres encryption) and never logged.
+- Sensitive fields (`Application.personal`, payment provider refs) are stored encrypted at rest at the database/disk level (the database host's disk encryption) and never logged.
 - Soft deletes preserve referential integrity; hard purge is a scheduled job with retention policy.
 - Backups encrypted, tested by the restore drill script.
 

@@ -20,3 +20,21 @@ minimumReleaseAgeExclude:
 # and runs it from there; pnpm's symlinked layout left Next unable to resolve
 # its own dependencies (e.g. @swc/helpers) at runtime.
 nodeLinker: hoisted
+
+# Security floors for transitive dependencies whose parents still ask for a
+# vulnerable version (Dependabot/pnpm audit, 2026-11). Each is scoped to one
+# major so it can't drag an unrelated consumer across a breaking change.
+# Drop an entry once its parent package ships the fix on its own.
+overrides:
+  brace-expansion@1: ^1.1.21
+  brace-expansion@2: ^2.1.7
+  brace-expansion@5: ^5.0.12
+  source-map-js@1: ^1.2.2
+  undici@7: ^7.30.1
+  # @prisma/config 6.19.3 (last Prisma 6) pins these exactly.
+  effect@3: ^3.22.1
+  deepmerge-ts@7: ^8.0.0
+  # exceljs 4.4.0 (latest) still asks for uuid 8; it only calls v4().
+  uuid@8: ^11.1.1
+  # Older typescript-eslint asks for minimatch 10; current releases use 11.
+  minimatch@10: ^11.0.1
